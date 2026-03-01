@@ -1,0 +1,129 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  Design tokens (enterprise):
+  - Deep blue primary (trust/compliance)
+  - Teal accent (health/progress)
+  - Neutral grays for readability
+  All values are HSL ...
+*/
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 221 83% 53%; /* trust blue */
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 171 75% 40%; /* progress teal */
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221 83% 53%;
+
+    --radius: 14px;
+
+    /* Brand scale */
+    --brand-50: 210 100% 98%;
+    --brand-100: 210 100% 96%;
+    --brand-200: 210 95% 92%;
+    --brand-300: 210 90% 85%;
+    --brand-400: 221 85% 70%;
+    --brand-500: 221 83% 53%;
+    --brand-600: 221 80% 45%;
+    --brand-700: 221 75% 38%;
+    --brand-800: 221 70% 30%;
+    --brand-900: 221 65% 22%;
+
+    /* Charts (optional) */
+    --chart-1: 221 83% 53%;
+    --chart-2: 171 75% 40%;
+    --chart-3: 43 74% 66%;
+    --chart-4: 280 65% 60%;
+    --chart-5: 12 76% 61%;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 6%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 6%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 221 83% 60%;
+    --primary-foreground: 222.2 84% 4.9%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 171 75% 45%;
+    --accent-foreground: 222.2 84% 4.9%;
+
+    --destructive: 0 62.8% 50%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 221 83% 60%;
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html,
+  body {
+    height: 100%;
+  }
+
+  body {
+    @apply bg-background text-foreground antialiased font-sans;
+  }
+
+  a {
+    @apply underline-offset-4;
+  }
+
+  /* Print-friendly defaults */
+  @media print {
+    header,
+    aside {
+      display: none !important;
+    }
+    main {
+      padding: 0 !important;
+    }
+    .container {
+      max-width: none !important;
+      padding: 0 !important;
+    }
+  }
+}
+
+/* Remove default marker from <summary> for custom mobile menus */
+details summary::-webkit-details-marker { display: none; }

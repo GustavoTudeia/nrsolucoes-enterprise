@@ -1,0 +1,38 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: nr
+      POSTGRES_PASSWORD: nr
+      POSTGRES_DB: nrsolucoes
+    ports:
+      - "5432:5432"
+    volumes:
+      - nr_db:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      - ENV=dev
+      - AUTO_CREATE_SCHEMA=true
+      - DATABASE_URL=postgresql+psycopg2://nr:nr@db:5432/nrsolucoes
+      - REDIS_URL=redis://redis:6379/0
+      - JWT_SECRET_KEY=CHANGE_ME_TO_A_LONG_RANDOM_SECRET
+      - CORS_ORIGINS=http://localhost:3000
+      - DEFAULT_MIN_ANON_THRESHOLD=5
+      - DEV_RETURN_OTP=true
+      - API_BASE_URL=http://localhost:8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      - db
+      - redis
+
+volumes:
+  nr_db:

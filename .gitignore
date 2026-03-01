@@ -1,0 +1,25 @@
+﻿# Dependências
+node_modules/
+.next/
+out/
+build/
+dist/
+
+# Python
+__pycache__/
+*.py[cod]
+*.class
+venv/
+.venv/
+env/
+
+# Ambiente e Segredos
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# Docker e Logs
+*.log
+docker-compose.override.yml
