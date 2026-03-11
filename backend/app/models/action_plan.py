@@ -107,6 +107,24 @@ class ActionItem(Base, UUIDPrimaryKeyMixin, TimestampMixin, TenantScopedMixin):
         String(30), nullable=True
     )  # content_item | learning_path
     education_ref_id = Column(GUID(), nullable=True)
+    # === PÚBLICO-ALVO (para itens educativos) ===
+    target_type = Column(
+        String(30), nullable=True
+    )  # all_employees | org_unit | cnpj | selected
+    target_org_unit_id = Column(
+        GUID(), ForeignKey("org_unit.id"), nullable=True, index=True
+    )
+    target_cnpj_id = Column(GUID(), ForeignKey("cnpj.id"), nullable=True, index=True)
+    auto_enroll = Column(Boolean, default=True)
+    enrollment_due_days = Column(Integer, default=30)
+    require_all_completions = Column(Boolean, default=True)
+    auto_complete_on_all_done = Column(Boolean, default=True)
+
+    # Estatísticas de enrollment (cache)
+    enrollment_total = Column(Integer, default=0)
+    enrollment_completed = Column(Integer, default=0)
+    enrollment_in_progress = Column(Integer, default=0)
+    enrollment_pending = Column(Integer, default=0)
 
     # Notificações
     notify_on_assignment = Column(Boolean, default=True)
@@ -134,6 +152,13 @@ class ActionItem(Base, UUIDPrimaryKeyMixin, TimestampMixin, TenantScopedMixin):
     )
     plan = relationship("ActionPlan", back_populates="items")
     responsible_user = relationship("User", foreign_keys=[responsible_user_id])
+    target_org_unit = relationship("OrgUnit", foreign_keys=[target_org_unit_id])
+    target_cnpj = relationship("CNPJ", foreign_keys=[target_cnpj_id])
+    enrollments = relationship(
+        "ActionItemEnrollment",
+        back_populates="action_item",
+        cascade="all, delete-orphan",
+    )
 
 
 class ActionEvidence(Base, UUIDPrimaryKeyMixin, TimestampMixin, TenantScopedMixin):

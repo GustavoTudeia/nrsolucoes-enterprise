@@ -37,7 +37,11 @@ def create_upload_url(key: str, content_type: str) -> PresignResult:
         client = _s3_client(presign_endpoint)
         url = client.generate_presigned_url(
             ClientMethod="put_object",
-            Params={"Bucket": settings.S3_BUCKET, "Key": key, "ContentType": content_type},
+            Params={
+                "Bucket": settings.S3_BUCKET,
+                "Key": key,
+                "ContentType": content_type,
+            },
             ExpiresIn=expires,
         )
         return PresignResult(url=url, expires_in=expires)
@@ -58,4 +62,37 @@ def create_access_url(key: str) -> PresignResult:
         )
         return PresignResult(url=url, expires_in=expires)
 
+    raise RuntimeError("STORAGE_BACKEND não suportado")
+
+
+def upload_bytes(
+    key: str, data: bytes, content_type: str = "application/octet-stream"
+) -> bool:
+    """Upload direto de bytes para o storage."""
+    if settings.STORAGE_BACKEND == "s3":
+        client = _s3_client()
+        client.put_object(
+            Bucket=settings.S3_BUCKET,
+            Key=key,
+            Body=data,
+            ContentType=content_type,
+        )
+        return True
+    raise RuntimeError("STORAGE_BACKEND não suportado")
+
+
+def upload_file_directly(
+    key: str, file_path: str, content_type: str = "application/octet-stream"
+) -> bool:
+    """Upload direto de arquivo para o storage."""
+    if settings.STORAGE_BACKEND == "s3":
+        client = _s3_client()
+        with open(file_path, "rb") as f:
+            client.put_object(
+                Bucket=settings.S3_BUCKET,
+                Key=key,
+                Body=f,
+                ContentType=content_type,
+            )
+        return True
     raise RuntimeError("STORAGE_BACKEND não suportado")

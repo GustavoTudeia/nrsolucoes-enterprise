@@ -7,6 +7,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
+from app.core.security import create_access_token
 
 from app.api.deps import (
     get_current_employee,
@@ -19,7 +20,12 @@ from app.core.audit import make_audit_event
 from app.core.errors import Forbidden, NotFound, BadRequest
 from app.db.session import get_db
 from app.models.employee import Employee
-from app.models.lms import ContentAssignment, ContentCompletion, ContentItem, ContentProgress
+from app.models.lms import (
+    ContentAssignment,
+    ContentCompletion,
+    ContentItem,
+    ContentProgress,
+)
 from app.schemas.lms import ProgressUpdate, ProgressOut
 from app.services.storage import create_access_url
 
@@ -48,7 +54,12 @@ def list_assignments(
     q = (
         db.query(ContentAssignment)
         .filter(ContentAssignment.tenant_id == tenant_id)
-        .filter(or_(ContentAssignment.employee_id == emp.id, ContentAssignment.org_unit_id == emp.org_unit_id))
+        .filter(
+            or_(
+                ContentAssignment.employee_id == emp.id,
+                ContentAssignment.org_unit_id == emp.org_unit_id,
+            )
+        )
         .order_by(ContentAssignment.created_at.desc())
     )
     rows = q.all()
@@ -59,13 +70,21 @@ def list_assignments(
     if ids:
         comps = (
             db.query(ContentCompletion)
-            .filter(ContentCompletion.tenant_id == tenant_id, ContentCompletion.employee_id == emp.id, ContentCompletion.assignment_id.in_(ids))
+            .filter(
+                ContentCompletion.tenant_id == tenant_id,
+                ContentCompletion.employee_id == emp.id,
+                ContentCompletion.assignment_id.in_(ids),
+            )
             .all()
         )
         completion_ids = {str(c.assignment_id) for c in comps}
         prows = (
             db.query(ContentProgress)
-            .filter(ContentProgress.tenant_id == tenant_id, ContentProgress.employee_id == emp.id, ContentProgress.assignment_id.in_(ids))
+            .filter(
+                ContentProgress.tenant_id == tenant_id,
+                ContentProgress.employee_id == emp.id,
+                ContentProgress.assignment_id.in_(ids),
+            )
             .all()
         )
         for p in prows:
@@ -78,8 +97,12 @@ def list_assignments(
         items.append(
             {
                 "id": str(r.id),
-                "content_item_id": str(r.content_item_id) if r.content_item_id else None,
-                "learning_path_id": str(r.learning_path_id) if r.learning_path_id else None,
+                "content_item_id": (
+                    str(r.content_item_id) if r.content_item_id else None
+                ),
+                "learning_path_id": (
+                    str(r.learning_path_id) if r.learning_path_id else None
+                ),
                 "status": status,
                 "due_at": r.due_at.isoformat() if r.due_at else None,
                 "progress_seconds": p.position_seconds if p else 0,
@@ -99,7 +122,10 @@ def _require_assignment_access(assignment: ContentAssignment, emp: Employee) -> 
 @router.get("/contents/{content_id}")
 def get_content(
     content_id: UUID,
-    assignment_id: Optional[UUID] = Query(default=None, description="Se informado, valida que o conteúdo está atribuído ao colaborador"),
+    assignment_id: Optional[UUID] = Query(
+        default=None,
+        description="Se informado, valida que o conteúdo está atribuído ao colaborador",
+    ),
     db: Session = Depends(get_db),
     _sub_ok: None = Depends(require_active_subscription_employee),
     _feat_ok: None = Depends(require_feature_employee("LMS")),
@@ -107,7 +133,14 @@ def get_content(
     tenant_id: UUID = Depends(tenant_id_from_employee),
 ):
     if assignment_id:
-        assignment = db.query(ContentAssignment).filter(ContentAssignment.id == assignment_id, ContentAssignment.tenant_id == tenant_id).first()
+        assignment = (
+            db.query(ContentAssignment)
+            .filter(
+                ContentAssignment.id == assignment_id,
+                ContentAssignment.tenant_id == tenant_id,
+            )
+            .first()
+        )
         if not assignment:
             raise NotFound("Atribuição não encontrada")
         _require_assignment_access(assignment, emp)
@@ -152,14 +185,25 @@ def complete_assignment(
     tenant_id: UUID = Depends(tenant_id_from_employee),
     meta: dict = Depends(get_request_meta),
 ):
-    assignment = db.query(ContentAssignment).filter(ContentAssignment.id == assignment_id, ContentAssignment.tenant_id == tenant_id).first()
+    assignment = (
+        db.query(ContentAssignment)
+        .filter(
+            ContentAssignment.id == assignment_id,
+            ContentAssignment.tenant_id == tenant_id,
+        )
+        .first()
+    )
     if not assignment:
         raise NotFound("Atribuição não encontrada")
     _require_assignment_access(assignment, emp)
 
     existing = (
         db.query(ContentCompletion)
-        .filter(ContentCompletion.tenant_id == tenant_id, ContentCompletion.assignment_id == assignment.id, ContentCompletion.employee_id == emp.id)
+        .filter(
+            ContentCompletion.tenant_id == tenant_id,
+            ContentCompletion.assignment_id == assignment.id,
+            ContentCompletion.employee_id == emp.id,
+        )
         .first()
     )
     if existing:
@@ -184,7 +228,11 @@ def complete_assignment(
             entity_type="CONTENT_COMPLETION",
             entity_id=comp.id,
             before=None,
-            after={"assignment_id": str(assignment.id), "employee_id": str(emp.id), "method": completion_method},
+            after={
+                "assignment_id": str(assignment.id),
+                "employee_id": str(emp.id),
+                "method": completion_method,
+            },
             ip=meta.get("ip"),
             user_agent=meta.get("user_agent"),
             request_id=meta.get("request_id"),
@@ -204,14 +252,25 @@ def upsert_progress(
     tenant_id: UUID = Depends(tenant_id_from_employee),
     meta: dict = Depends(get_request_meta),
 ):
-    assignment = db.query(ContentAssignment).filter(ContentAssignment.id == payload.assignment_id, ContentAssignment.tenant_id == tenant_id).first()
+    assignment = (
+        db.query(ContentAssignment)
+        .filter(
+            ContentAssignment.id == payload.assignment_id,
+            ContentAssignment.tenant_id == tenant_id,
+        )
+        .first()
+    )
     if not assignment:
         raise NotFound("Atribuição não encontrada")
     _require_assignment_access(assignment, emp)
 
     row = (
         db.query(ContentProgress)
-        .filter(ContentProgress.tenant_id == tenant_id, ContentProgress.assignment_id == assignment.id, ContentProgress.employee_id == emp.id)
+        .filter(
+            ContentProgress.tenant_id == tenant_id,
+            ContentProgress.assignment_id == assignment.id,
+            ContentProgress.employee_id == emp.id,
+        )
         .first()
     )
     if not row:
@@ -235,7 +294,11 @@ def upsert_progress(
         if row.position_seconds >= int(row.duration_seconds * 0.9):
             existing = (
                 db.query(ContentCompletion)
-                .filter(ContentCompletion.tenant_id == tenant_id, ContentCompletion.assignment_id == assignment.id, ContentCompletion.employee_id == emp.id)
+                .filter(
+                    ContentCompletion.tenant_id == tenant_id,
+                    ContentCompletion.assignment_id == assignment.id,
+                    ContentCompletion.employee_id == emp.id,
+                )
                 .first()
             )
             if not existing:
@@ -258,7 +321,11 @@ def upsert_progress(
             entity_type="CONTENT_PROGRESS",
             entity_id=row.id,
             before=None,
-            after={"assignment_id": str(assignment.id), "employee_id": str(emp.id), "pos": row.position_seconds},
+            after={
+                "assignment_id": str(assignment.id),
+                "employee_id": str(emp.id),
+                "pos": row.position_seconds,
+            },
             ip=meta.get("ip"),
             user_agent=meta.get("user_agent"),
             request_id=meta.get("request_id"),
@@ -273,3 +340,42 @@ def upsert_progress(
         duration_seconds=row.duration_seconds,
         last_event_at=row.last_event_at,
     )
+
+
+@router.post("/auth/login")
+def employee_login(
+    identifier: str = Query(..., description="Email, CPF ou ID do colaborador"),
+    tenant_id: UUID = Query(..., description="ID do tenant"),
+    db: Session = Depends(get_db),
+):
+    """Login simplificado para colaborador (ambiente de desenvolvimento)."""
+    employee = (
+        db.query(Employee)
+        .filter(
+            Employee.tenant_id == tenant_id,
+            Employee.identifier == identifier,
+            Employee.is_active == True,
+        )
+        .first()
+    )
+
+    if not employee:
+        raise NotFound("Colaborador não encontrado")
+
+    # Gerar token JWT
+    token_data = {
+        "sub": str(employee.id),
+        "tid": str(employee.tenant_id),
+        "type": "employee",
+    }
+    access_token = create_access_token(token_data)
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "employee": {
+            "id": str(employee.id),
+            "identifier": employee.identifier,
+            "full_name": employee.full_name,
+        },
+    }

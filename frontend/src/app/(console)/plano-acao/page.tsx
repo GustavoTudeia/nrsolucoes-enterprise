@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { listCnpjs, listUnits } from "@/lib/api/org";
+import EnrollmentsTab from "@/components/action-plan/EnrollmentsTab";
 import { PageHeader } from "@/components/console/page-header";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
@@ -63,9 +65,12 @@ function PriorityBadge({ priority }: { priority: string }) {
 }
 
 export default function PlanoAcaoPage() {
-  const { scope } = useConsole();
+  const { scope, me } = useConsole();
+  const tenantSlug = me?.tenant?.slug || "";
   const [assessments, setAssessments] = useState<RiskAssessmentOut[]>([]);
   const [assessmentId, setAssessmentId] = useState("");
+  const [orgUnits, setOrgUnits] = useState<Array<{ id: string; name: string }>>([]);
+  const [cnpjsList, setCnpjsList] = useState<Array<{ id: string; legal_name: string; cnpj: string }>>([]);
   const [plans, setPlans] = useState<ActionPlanOut[]>([]);
   const [planId, setPlanId] = useState("");
   const [items, setItems] = useState<ActionItemOut[]>([]);
@@ -141,7 +146,21 @@ export default function PlanoAcaoPage() {
     } catch { setContents([]); }
   }
 
-  useEffect(() => { loadAssessments(); loadUsers(); loadContents(); }, [scope.cnpjId]);
+  async function loadOrgUnits() {
+    try {
+      const units = await listUnits();
+      setOrgUnits(units.map(u => ({ id: u.id, name: u.name })));
+    } catch { setOrgUnits([]); }
+  }
+
+  async function loadCnpjs() {
+    try {
+      const cnpjs = await listCnpjs();
+      setCnpjsList(cnpjs.map(c => ({ id: c.id, legal_name: c.legal_name || c.cnpj_number, cnpj: c.cnpj_number })));
+    } catch { setCnpjsList([]); }
+  }
+
+  useEffect(() => { loadAssessments(); loadUsers(); loadContents(); loadOrgUnits(); loadCnpjs(); }, [scope.cnpjId]);
   useEffect(() => { if (assessmentId) loadPlans(assessmentId); }, [assessmentId]);
   useEffect(() => { if (planId) loadItems(planId); }, [planId]);
 
@@ -242,7 +261,7 @@ export default function PlanoAcaoPage() {
               <SelectContent>
                 {assessments.map(a => (
                   <SelectItem key={a.id} value={a.id}>
-                    {new Date(a.assessed_at).toLocaleDateString()} • {a.level.toUpperCase()} • {(a.score * 100).toFixed(0)}%
+                    {a.campaign_name || 'Campanha'} {a.org_unit_name ? `• ${a.org_unit_name}` : ''} • {new Date(a.assessed_at).toLocaleDateString()} • {a.level.toUpperCase()} ({(a.score * 100).toFixed(0)}%)
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -420,17 +439,23 @@ export default function PlanoAcaoPage() {
         onClose={() => { setDrawerOpen(false); setSelectedItem(null); }}
         onUpdate={() => loadItems(planId)}
         users={users}
+        tenantSlug={tenantSlug}
+        orgUnits={orgUnits}
+        cnpjs={cnpjsList.map(c => ({ id: c.id, legal_name: c.legal_name || c.cnpj }))}
       />
     </div>
   );
 }
 
-function ItemDetailDrawer({ item, open, onClose, onUpdate, users }: {
+function ItemDetailDrawer({ item, open, onClose, onUpdate, users, orgUnits, cnpjs, tenantSlug }: {
   item: ActionItemOut | null;
   open: boolean;
   onClose: () => void;
   onUpdate: () => void;
   users: ResponsibleUserInfo[];
+  tenantSlug?: string;
+  orgUnits: Array<{ id: string; name: string }>;
+  cnpjs: Array<{ id: string; legal_name: string }>;
 }) {
   const [tab, setTab] = useState("details");
   const [fullItem, setFullItem] = useState<ActionItemOut | null>(null);
@@ -515,11 +540,12 @@ function ItemDetailDrawer({ item, open, onClose, onUpdate, users }: {
           </div>
         </DialogHeader>
         <Tabs value={tab} onValueChange={setTab} className="flex-1 overflow-hidden flex flex-col">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="details">Detalhes</TabsTrigger>
             <TabsTrigger value="evidences">Evidências ({fullItem?.evidences?.length || 0})</TabsTrigger>
             <TabsTrigger value="comments">Comentários ({fullItem?.comments?.length || 0})</TabsTrigger>
             <TabsTrigger value="history">Histórico</TabsTrigger>
+            <TabsTrigger value="enrollments">Matrículas</TabsTrigger>
           </TabsList>
           <div className="flex-1 overflow-y-auto mt-4 pr-2">
             <TabsContent value="details" className="m-0">
@@ -690,6 +716,22 @@ function ItemDetailDrawer({ item, open, onClose, onUpdate, users }: {
                 ))}
                 {(fullItem?.history || []).length === 0 && <p className="text-sm text-muted-foreground text-center py-4">Sem histórico</p>}
               </div>
+            </TabsContent>
+            <TabsContent value="enrollments" className="m-0">
+              {fullItem && (
+                <EnrollmentsTab
+                  itemId={fullItem.id}
+                  itemType={fullItem.item_type}
+                  tenantSlug={tenantSlug}
+                  onUpdate={() => {
+                    onUpdate();
+                    getActionItem(fullItem.id, { include_evidences: true, include_comments: true, include_history: true })
+                      .then(setFullItem);
+                  }}
+                  orgUnits={orgUnits}
+                  cnpjs={cnpjs}
+                />
+              )}
             </TabsContent>
           </div>
         </Tabs>

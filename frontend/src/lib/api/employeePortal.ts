@@ -21,3 +21,25 @@ export async function completeAssignment(assignment_id: string) {
 export async function upsertProgress(payload: { assignment_id: string; position_seconds: number; duration_seconds?: number | null }) {
   return apiFetch<ProgressOut>("employee", "/employee/progress", { method: "POST", body: JSON.stringify(payload) });
 }
+
+export async function otpStart(payload: { tenant_id: string; identifier: string }) {
+  const res = await fetch("/api/auth/employee/otp/start", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail || "Erro ao enviar OTP");
+  return data;
+}
+
+export async function otpVerify(payload: { tenant_id: string; identifier: string; code: string }) {
+  const res = await fetch("/api/auth/employee/otp/verify", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail || "Código inválido");
+  return data;
+}

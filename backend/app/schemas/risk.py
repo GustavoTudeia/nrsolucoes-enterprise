@@ -1,5 +1,4 @@
 from __future__ import annotations
-
 from pydantic import BaseModel
 from uuid import UUID
 from typing import Dict, Any, Optional
@@ -24,11 +23,13 @@ class CriterionOut(BaseModel):
 
 class RiskAssessmentOut(BaseModel):
     id: UUID
-    tenant_id: UUID
     campaign_id: UUID
+    campaign_name: Optional[str] = None  # NOVO: nome da campanha
     cnpj_id: UUID
     org_unit_id: Optional[UUID] = None
+    org_unit_name: Optional[str] = None  # NOVO: nome da unidade/setor
     criterion_version_id: UUID
+    criterion_name: Optional[str] = None  # NOVO: nome do critério
     score: float
     level: str
     dimension_scores: Dict[str, Any]

@@ -533,7 +533,11 @@ def me(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if user.tenant_id:
         tenant = db.query(Tenant).filter(Tenant.id == user.tenant_id).first()
         if tenant:
-            tenant_info = {"id": str(tenant.id), "name": tenant.name}
+            tenant_info = {
+                "id": str(tenant.id),
+                "name": tenant.name,
+                "slug": tenant.slug,
+            }
 
     return {
         "id": user.id,

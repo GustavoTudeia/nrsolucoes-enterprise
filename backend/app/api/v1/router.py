@@ -20,6 +20,8 @@ from app.api.v1 import (
     settings,
     reports,
     employee_portal,
+    employee_portal_trainings,
+    employee_auth,
     public,
     affiliates,
     audit,
@@ -28,7 +30,8 @@ from app.api.v1 import (
     esocial,
     platform_plans,
     invitations,
-    auth_password,  # NOVO
+    auth_password,
+    trainings,
 )
 
 router = APIRouter(prefix="/api/v1")
@@ -56,6 +59,7 @@ router.include_router(risks.router, tags=["risks"], dependencies=console_deps)
 router.include_router(
     action_plans.router, tags=["action-plans"], dependencies=console_deps
 )
+router.include_router(trainings.router, tags=["trainings"], dependencies=console_deps)
 router.include_router(lms.router, tags=["lms"], dependencies=console_deps)
 router.include_router(billing.router, tags=["billing"], dependencies=console_deps)
 router.include_router(settings.router, tags=["settings"], dependencies=console_deps)
@@ -75,6 +79,10 @@ router.include_router(invitations.router, tags=["invitations"])
 
 # Employee Portal / Público (sem aceite do console)
 router.include_router(employee_portal.router, tags=["employee-portal"])
+router.include_router(
+    employee_portal_trainings.router, prefix="/employee", tags=["employee-portal"]
+)
+router.include_router(employee_auth.router, tags=["employee-auth"])
 router.include_router(public.router, tags=["public"])
 router.include_router(public_affiliates.router, tags=["public-affiliates"])
 

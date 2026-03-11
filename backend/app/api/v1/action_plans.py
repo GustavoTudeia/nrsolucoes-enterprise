@@ -862,6 +862,16 @@ def update_item(
     for k, v in data.items():
         setattr(item, k, v)
 
+    # Converter UUIDs e datas para strings para serialização JSON
+    after_json = {}
+    for k, v in data.items():
+        if isinstance(v, UUID):
+            after_json[k] = str(v)
+        elif hasattr(v, "isoformat"):
+            after_json[k] = v.isoformat()
+        else:
+            after_json[k] = v
+
     db.add(
         make_audit_event(
             tenant_id,
@@ -870,7 +880,7 @@ def update_item(
             "ACTION_ITEM",
             item.id,
             before,
-            data,
+            after_json,
             meta.get("ip"),
             meta.get("user_agent"),
             meta.get("request_id"),

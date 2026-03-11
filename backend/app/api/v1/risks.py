@@ -8,7 +8,13 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
-from app.api.deps import require_platform_admin, require_any_role, tenant_id_from_user, get_request_meta, require_active_subscription
+from app.api.deps import (
+    require_platform_admin,
+    require_any_role,
+    tenant_id_from_user,
+    get_request_meta,
+    require_active_subscription,
+)
 from app.core.audit import make_audit_event
 from app.core.errors import Forbidden, NotFound, BadRequest
 from app.core.rbac import ROLE_TENANT_ADMIN, ROLE_CNPJ_MANAGER, ROLE_UNIT_MANAGER
@@ -23,6 +29,48 @@ from app.schemas.risk import CriterionCreate, CriterionOut, RiskAssessmentOut
 from app.services.risk_engine import compute_dimension_scores, apply_criterion
 
 router = APIRouter(prefix="/risks")
+
+
+def _build_assessment_out(r: RiskAssessment, db: Session) -> RiskAssessmentOut:
+    """Helper para construir RiskAssessmentOut com nomes relacionados."""
+    # Buscar nome da campanha
+    campaign_name = None
+    campaign = db.query(Campaign).filter(Campaign.id == r.campaign_id).first()
+    if campaign:
+        campaign_name = campaign.name
+
+    # Buscar nome da unidade/setor
+    org_unit_name = None
+    if r.org_unit_id:
+        org_unit = db.query(OrgUnit).filter(OrgUnit.id == r.org_unit_id).first()
+        if org_unit:
+            org_unit_name = org_unit.name
+
+    # Buscar nome do critério
+    criterion_name = None
+    criterion = (
+        db.query(RiskCriterionVersion)
+        .filter(RiskCriterionVersion.id == r.criterion_version_id)
+        .first()
+    )
+    if criterion:
+        criterion_name = criterion.name
+
+    return RiskAssessmentOut(
+        id=r.id,
+        campaign_id=r.campaign_id,
+        campaign_name=campaign_name,
+        cnpj_id=r.cnpj_id,
+        org_unit_id=r.org_unit_id,
+        org_unit_name=org_unit_name,
+        criterion_version_id=r.criterion_version_id,
+        criterion_name=criterion_name,
+        score=r.score,
+        level=r.level,
+        dimension_scores=r.dimension_scores,
+        assessed_at=r.assessed_at,
+        created_at=r.created_at,
+    )
 
 
 @router.post("/criteria", response_model=dict)
@@ -42,7 +90,20 @@ def create_criterion(
     )
     db.add(cv)
     db.flush()
-    db.add(make_audit_event(None, user.id, "CREATE", "RISK_CRITERION", cv.id, None, {"name": cv.name}, meta.get("ip"), meta.get("user_agent"), meta.get("request_id")))
+    db.add(
+        make_audit_event(
+            None,
+            user.id,
+            "CREATE",
+            "RISK_CRITERION",
+            cv.id,
+            None,
+            {"name": cv.name},
+            meta.get("ip"),
+            meta.get("user_agent"),
+            meta.get("request_id"),
+        )
+    )
     db.commit()
     return {"id": str(cv.id), "name": cv.name}
 
@@ -55,7 +116,9 @@ def list_criteria(
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     # criteria é global (plataforma) por padrão; ainda assim restringimos a usuários autenticados do tenant
-    user=Depends(require_any_role([ROLE_TENANT_ADMIN, ROLE_CNPJ_MANAGER, ROLE_UNIT_MANAGER])),
+    user=Depends(
+        require_any_role([ROLE_TENANT_ADMIN, ROLE_CNPJ_MANAGER, ROLE_UNIT_MANAGER])
+    ),
     tenant_id: UUID = Depends(tenant_id_from_user),
 ):
     base = db.query(RiskCriterionVersion).filter(RiskCriterionVersion.tenant_id == None)
@@ -65,7 +128,12 @@ def list_criteria(
         like = f"%{q.strip()}%"
         base = base.filter(RiskCriterionVersion.name.ilike(like))
     total = base.count()
-    rows = base.order_by(RiskCriterionVersion.created_at.desc()).offset(offset).limit(limit).all()
+    rows = (
+        base.order_by(RiskCriterionVersion.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
     items = [
         CriterionOut(
             id=r.id,
@@ -86,10 +154,19 @@ def list_criteria(
 def get_criterion(
     criterion_id: UUID,
     db: Session = Depends(get_db),
-    user=Depends(require_any_role([ROLE_TENANT_ADMIN, ROLE_CNPJ_MANAGER, ROLE_UNIT_MANAGER])),
+    user=Depends(
+        require_any_role([ROLE_TENANT_ADMIN, ROLE_CNPJ_MANAGER, ROLE_UNIT_MANAGER])
+    ),
     tenant_id: UUID = Depends(tenant_id_from_user),
 ):
-    r = db.query(RiskCriterionVersion).filter(RiskCriterionVersion.id == criterion_id, RiskCriterionVersion.tenant_id == None).first()
+    r = (
+        db.query(RiskCriterionVersion)
+        .filter(
+            RiskCriterionVersion.id == criterion_id,
+            RiskCriterionVersion.tenant_id == None,
+        )
+        .first()
+    )
     if not r:
         raise NotFound("Critério não encontrado")
     return CriterionOut(
@@ -111,24 +188,36 @@ def assess_campaign(
     org_unit_id: UUID | None = None,
     db: Session = Depends(get_db),
     _sub_ok: None = Depends(require_active_subscription),
-    user=Depends(require_any_role([ROLE_TENANT_ADMIN, ROLE_CNPJ_MANAGER, ROLE_UNIT_MANAGER])),
+    user=Depends(
+        require_any_role([ROLE_TENANT_ADMIN, ROLE_CNPJ_MANAGER, ROLE_UNIT_MANAGER])
+    ),
     tenant_id: UUID = Depends(tenant_id_from_user),
     meta: dict = Depends(get_request_meta),
 ):
-    camp = db.query(Campaign).filter(Campaign.id == campaign_id, Campaign.tenant_id == tenant_id).first()
+    camp = (
+        db.query(Campaign)
+        .filter(Campaign.id == campaign_id, Campaign.tenant_id == tenant_id)
+        .first()
+    )
     if not camp:
         raise NotFound("Campanha não encontrada")
 
-    settings = db.query(TenantSettings).filter(TenantSettings.tenant_id == tenant_id).first()
+    settings = (
+        db.query(TenantSettings).filter(TenantSettings.tenant_id == tenant_id).first()
+    )
     min_n = settings.min_anon_threshold if settings else 5
     target_org_unit_id = camp.org_unit_id or org_unit_id
 
     if target_org_unit_id is not None and camp.org_unit_id is None:
-        unit = db.query(OrgUnit).filter(
-            OrgUnit.id == target_org_unit_id,
-            OrgUnit.tenant_id == tenant_id,
-            OrgUnit.cnpj_id == camp.cnpj_id,
-        ).first()
+        unit = (
+            db.query(OrgUnit)
+            .filter(
+                OrgUnit.id == target_org_unit_id,
+                OrgUnit.tenant_id == tenant_id,
+                OrgUnit.cnpj_id == camp.cnpj_id,
+            )
+            .first()
+        )
         if not unit:
             raise BadRequest("org_unit_id inválido para este CNPJ/campanha")
 
@@ -139,11 +228,19 @@ def assess_campaign(
     if len(responses) < min_n:
         raise Forbidden(f"Classificação bloqueada: mínimo de {min_n} respostas (LGPD)")
 
-    qv = db.query(QuestionnaireVersion).filter(QuestionnaireVersion.id == camp.questionnaire_version_id).first()
+    qv = (
+        db.query(QuestionnaireVersion)
+        .filter(QuestionnaireVersion.id == camp.questionnaire_version_id)
+        .first()
+    )
     if not qv:
         raise NotFound("Questionário não encontrado")
 
-    crit = db.query(RiskCriterionVersion).filter(RiskCriterionVersion.id == criterion_version_id).first()
+    crit = (
+        db.query(RiskCriterionVersion)
+        .filter(RiskCriterionVersion.id == criterion_version_id)
+        .first()
+    )
     if not crit or crit.status != "published":
         raise BadRequest("Critério inválido")
 
@@ -171,7 +268,12 @@ def assess_campaign(
             "RISK_ASSESSMENT",
             ra.id,
             None,
-            {"level": level, "score": score, "campaign_id": str(camp.id), "org_unit_id": str(target_org_unit_id) if target_org_unit_id else None},
+            {
+                "level": level,
+                "score": score,
+                "campaign_id": str(camp.id),
+                "org_unit_id": str(target_org_unit_id) if target_org_unit_id else None,
+            },
             meta.get("ip"),
             meta.get("user_agent"),
             meta.get("request_id"),
@@ -179,19 +281,8 @@ def assess_campaign(
     )
     db.commit()
     db.refresh(ra)
-    return RiskAssessmentOut(
-        id=ra.id,
-        tenant_id=ra.tenant_id,
-        campaign_id=ra.campaign_id,
-        cnpj_id=ra.cnpj_id,
-        org_unit_id=ra.org_unit_id,
-        criterion_version_id=ra.criterion_version_id,
-        score=ra.score,
-        level=ra.level,
-        dimension_scores=ra.dimension_scores,
-        assessed_at=ra.assessed_at,
-        created_at=ra.created_at,
-    )
+
+    return _build_assessment_out(ra, db)
 
 
 @router.get("/assessments", response_model=Page[RiskAssessmentOut])
@@ -204,7 +295,9 @@ def list_assessments(
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     _sub_ok: None = Depends(require_active_subscription),
-    user=Depends(require_any_role([ROLE_TENANT_ADMIN, ROLE_CNPJ_MANAGER, ROLE_UNIT_MANAGER])),
+    user=Depends(
+        require_any_role([ROLE_TENANT_ADMIN, ROLE_CNPJ_MANAGER, ROLE_UNIT_MANAGER])
+    ),
     tenant_id: UUID = Depends(tenant_id_from_user),
 ):
     base = db.query(RiskAssessment).filter(RiskAssessment.tenant_id == tenant_id)
@@ -218,23 +311,14 @@ def list_assessments(
         base = base.filter(RiskAssessment.level == level)
 
     total = base.count()
-    rows = base.order_by(RiskAssessment.assessed_at.desc()).offset(offset).limit(limit).all()
-    items = [
-        RiskAssessmentOut(
-            id=r.id,
-            tenant_id=r.tenant_id,
-            campaign_id=r.campaign_id,
-            cnpj_id=r.cnpj_id,
-            org_unit_id=r.org_unit_id,
-            criterion_version_id=r.criterion_version_id,
-            score=r.score,
-            level=r.level,
-            dimension_scores=r.dimension_scores,
-            assessed_at=r.assessed_at,
-            created_at=r.created_at,
-        )
-        for r in rows
-    ]
+    rows = (
+        base.order_by(RiskAssessment.assessed_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+
+    items = [_build_assessment_out(r, db) for r in rows]
     return Page(items=items, total=total, limit=limit, offset=offset)
 
 
@@ -243,22 +327,19 @@ def get_assessment(
     assessment_id: UUID,
     db: Session = Depends(get_db),
     _sub_ok: None = Depends(require_active_subscription),
-    user=Depends(require_any_role([ROLE_TENANT_ADMIN, ROLE_CNPJ_MANAGER, ROLE_UNIT_MANAGER])),
+    user=Depends(
+        require_any_role([ROLE_TENANT_ADMIN, ROLE_CNPJ_MANAGER, ROLE_UNIT_MANAGER])
+    ),
     tenant_id: UUID = Depends(tenant_id_from_user),
 ):
-    r = db.query(RiskAssessment).filter(RiskAssessment.id == assessment_id, RiskAssessment.tenant_id == tenant_id).first()
+    r = (
+        db.query(RiskAssessment)
+        .filter(
+            RiskAssessment.id == assessment_id, RiskAssessment.tenant_id == tenant_id
+        )
+        .first()
+    )
     if not r:
         raise NotFound("Avaliação não encontrada")
-    return RiskAssessmentOut(
-        id=r.id,
-        tenant_id=r.tenant_id,
-        campaign_id=r.campaign_id,
-        cnpj_id=r.cnpj_id,
-        org_unit_id=r.org_unit_id,
-        criterion_version_id=r.criterion_version_id,
-        score=r.score,
-        level=r.level,
-        dimension_scores=r.dimension_scores,
-        assessed_at=r.assessed_at,
-        created_at=r.created_at,
-    )
+
+    return _build_assessment_out(r, db)

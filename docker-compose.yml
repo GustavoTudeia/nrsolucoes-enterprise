@@ -53,7 +53,7 @@ services:
       - redis
       - minio
       - minio-init
-    command: sh -c "python -c 'from app.db.session import engine; from app.db.base import Base; from app.models import *; Base.metadata.create_all(bind=engine); print(\"Schema created!\")' && alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    command: sh -c "python -c 'from app.db.session import engine; from app.db.base import Base; from app.models import *; Base.metadata.create_all(bind=engine); print(\"Schema created!\")' && alembic upgrade heads && uvicorn app.main:app --host 0.0.0.0 --port 8000"
     ports:
       - "8000:8000"
 

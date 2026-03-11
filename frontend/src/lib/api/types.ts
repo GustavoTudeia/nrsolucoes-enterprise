@@ -21,6 +21,7 @@ export interface MeResponse {
   email: string;
   full_name?: string | null;
   tenant_id?: string | null;
+  tenant?: { id: string; name: string; slug?: string } | null;
   is_platform_admin?: boolean;
   roles?: string[];
 }
@@ -203,14 +204,16 @@ export interface CriterionOut {
 
 export interface RiskAssessmentOut {
   id: string;
-  tenant_id: string;
   campaign_id: string;
+  campaign_name?: string;      // NOVO
   cnpj_id: string;
-  org_unit_id?: string | null;
+  org_unit_id?: string;
+  org_unit_name?: string;      // NOVO
   criterion_version_id: string;
+  criterion_name?: string;     // NOVO
   score: number;
   level: string;
-  dimension_scores: Record<string, any>;
+  dimension_scores: Record<string, number>;
   assessed_at: string;
   created_at: string;
 }
