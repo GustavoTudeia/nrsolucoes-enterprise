@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime
+from io import BytesIO
 from typing import Optional
 from uuid import UUID
 
@@ -8,7 +9,7 @@ from fastapi import APIRouter, Depends, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session, joinedload
 
-from fastapi.responses import Response
+from fastapi.responses import Response, StreamingResponse
 
 from app.api.deps import (
     require_any_role,
@@ -24,12 +25,14 @@ from app.core.rbac import (
 )
 from app.db.session import get_db
 from app.models.action_plan import ActionPlan, ActionItem
+from app.models.training import ActionItemEnrollment, TrainingCertificate
 from app.models.audit_event import AuditEvent
 from app.models.campaign import Campaign, SurveyResponse
 from app.models.employee import Employee
 from app.models.org import CNPJ, OrgUnit
 from app.models.risk import RiskAssessment
 from app.models.tenant import TenantSettings
+from app.services.pgr_dossier_pdf import generate_pgr_dossier_pdf
 
 router = APIRouter(prefix="/reports")
 
@@ -211,6 +214,67 @@ def tenant_overview(
             )
         },
         "readiness": readiness,
+    }
+
+
+@router.get("/readiness")
+def get_readiness(
+    user=Depends(require_active_subscription),
+    _roles=Depends(
+        require_any_role(
+            [
+                ROLE_OWNER,
+                ROLE_TENANT_ADMIN,
+                ROLE_TENANT_AUDITOR,
+                ROLE_CNPJ_MANAGER,
+                ROLE_UNIT_MANAGER,
+            ]
+        )
+    ),
+    db: Session = Depends(get_db),
+):
+    tenant_id = tenant_id_from_user(user)
+
+    has_cnpj = db.query(CNPJ).filter(CNPJ.tenant_id == tenant_id, CNPJ.is_active == True).count() > 0
+    has_org_units = db.query(OrgUnit).filter(OrgUnit.tenant_id == tenant_id).count() > 0
+    has_employees = db.query(Employee).filter(Employee.tenant_id == tenant_id, Employee.is_active == True).count() > 0
+    has_campaign = db.query(Campaign).filter(Campaign.tenant_id == tenant_id, Campaign.status == "closed").count() > 0
+    has_risk = db.query(RiskAssessment).filter(RiskAssessment.tenant_id == tenant_id).count() > 0
+    has_action_plan = db.query(ActionPlan).filter(ActionPlan.tenant_id == tenant_id).count() > 0
+
+    # Training readiness
+    educational_items = db.query(ActionItem).filter(
+        ActionItem.tenant_id == tenant_id,
+        ActionItem.item_type == "educational"
+    ).count()
+    completed_trainings = db.query(ActionItemEnrollment).filter(
+        ActionItemEnrollment.tenant_id == tenant_id,
+        ActionItemEnrollment.status == "completed"
+    ).count()
+    has_training = completed_trainings > 0
+
+    certificates = db.query(TrainingCertificate).filter(
+        TrainingCertificate.tenant_id == tenant_id
+    ).count()
+    has_certificates = certificates > 0
+
+    steps = [
+        {"key": "org_structure", "label": "Estrutura organizacional", "done": has_cnpj and has_org_units and has_employees, "description": "CNPJ, unidades e colaboradores cadastrados"},
+        {"key": "diagnostic", "label": "Diagnóstico realizado", "done": has_campaign, "description": "Ao menos uma campanha de pesquisa encerrada"},
+        {"key": "risk_assessment", "label": "Avaliação de riscos", "done": has_risk, "description": "Riscos classificados a partir do diagnóstico"},
+        {"key": "action_plan", "label": "Plano de ação", "done": has_action_plan, "description": "Plano de ação criado com itens de melhoria"},
+        {"key": "training", "label": "Capacitação", "done": has_training, "description": "Treinamentos concluídos por colaboradores"},
+        {"key": "certificates", "label": "Certificados emitidos", "done": has_certificates, "description": "Certificados gerados para treinamentos concluídos"},
+    ]
+
+    done_count = sum(1 for s in steps if s["done"])
+
+    return {
+        "steps": steps,
+        "done": done_count,
+        "total": len(steps),
+        "completion_percentage": round(done_count / len(steps) * 100, 1),
+        "overall_ready": done_count == len(steps),
     }
 
 
@@ -423,5 +487,185 @@ def pgr_dossier(
                 "request_id": e.request_id,
             }
             for e in audit_events
+        ],
+    }
+
+
+@router.get("/pgr-dossier/pdf")
+def pgr_dossier_pdf(
+    cnpj_id: Optional[UUID] = Query(default=None),
+    campaign_id: Optional[UUID] = Query(default=None),
+    limit_audit: int = Query(default=100, ge=0, le=500),
+    db: Session = Depends(get_db),
+    _sub_ok: None = Depends(require_active_subscription),
+    _user=Depends(
+        require_any_role(
+            [
+                ROLE_OWNER,
+                ROLE_TENANT_ADMIN,
+                ROLE_TENANT_AUDITOR,
+                ROLE_CNPJ_MANAGER,
+                ROLE_UNIT_MANAGER,
+            ]
+        )
+    ),
+    tenant_id: UUID = Depends(tenant_id_from_user),
+):
+    """Gera Dossiê PGR completo em PDF para fiscalização NR-1.
+
+    Inclui:
+    - Estrutura organizacional (CNPJs, unidades)
+    - Campanhas de diagnóstico
+    - Avaliações de risco
+    - Planos de ação com itens e evidências
+    - Trilha de auditoria
+
+    O PDF é formatado para impressão e atende requisitos de documentação da NR-1.
+    """
+    # Reutiliza a lógica do endpoint JSON
+    dossier_data = pgr_dossier(
+        cnpj_id=cnpj_id,
+        campaign_id=campaign_id,
+        limit_audit=limit_audit,
+        db=db,
+        _sub_ok=_sub_ok,
+        _user=_user,
+        tenant_id=tenant_id,
+    )
+
+    # Gera PDF
+    pdf_bytes = generate_pgr_dossier_pdf(dossier_data)
+
+    # Nome do arquivo
+    filename = f"dossie_pgr_{datetime.utcnow().strftime('%Y%m%d_%H%M%S')}.pdf"
+
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"'
+        },
+    )
+
+
+# =============================================================================
+# RELATÓRIO DE TREINAMENTOS CONSOLIDADO
+# =============================================================================
+
+
+@router.get("/training-summary")
+def training_summary(
+    cnpj_id: Optional[UUID] = Query(default=None),
+    org_unit_id: Optional[UUID] = Query(default=None),
+    db: Session = Depends(get_db),
+    _sub_ok: None = Depends(require_active_subscription),
+    _user=Depends(
+        require_any_role(
+            [
+                ROLE_OWNER,
+                ROLE_TENANT_ADMIN,
+                ROLE_TENANT_AUDITOR,
+                ROLE_CNPJ_MANAGER,
+                ROLE_UNIT_MANAGER,
+            ]
+        )
+    ),
+    tenant_id: UUID = Depends(tenant_id_from_user),
+):
+    """Relatório consolidado de treinamentos NR-1.
+
+    Retorna estatísticas de todos os itens educativos dos planos de ação,
+    incluindo taxa de conclusão, colaboradores pendentes e certificados emitidos.
+    """
+    # Busca itens educativos, filtrando opcionalmente por cnpj/org_unit
+    items_q = db.query(ActionItem).filter(
+        ActionItem.tenant_id == tenant_id,
+        ActionItem.item_type == "educational",
+    )
+
+    # Se cnpj_id ou org_unit_id fornecidos, filtra via action_plan -> risk_assessment
+    if cnpj_id or org_unit_id:
+        risk_q = db.query(RiskAssessment.id).filter(
+            RiskAssessment.tenant_id == tenant_id
+        )
+        if cnpj_id:
+            risk_q = risk_q.filter(RiskAssessment.cnpj_id == cnpj_id)
+        if org_unit_id:
+            risk_q = risk_q.filter(RiskAssessment.org_unit_id == org_unit_id)
+        risk_ids = [r[0] for r in risk_q.all()]
+
+        plan_ids = [
+            p[0]
+            for p in db.query(ActionPlan.id)
+            .filter(
+                ActionPlan.tenant_id == tenant_id,
+                ActionPlan.risk_assessment_id.in_(risk_ids) if risk_ids else False,
+            )
+            .all()
+        ]
+        items_q = items_q.filter(
+            ActionItem.action_plan_id.in_(plan_ids) if plan_ids else False
+        )
+
+    items = items_q.all()
+
+    total_items = len(items)
+    total_enrollments = 0
+    total_completed = 0
+    total_pending = 0
+
+    for item in items:
+        total_enrollments += item.enrollment_total or 0
+        total_completed += item.enrollment_completed or 0
+        total_pending += item.enrollment_pending or 0
+
+    # Conta certificados (filtrados se necessário)
+    cert_q = db.query(func.count(TrainingCertificate.id)).filter(
+        TrainingCertificate.tenant_id == tenant_id,
+    )
+    if cnpj_id or org_unit_id:
+        item_ids = [item.id for item in items]
+        if item_ids:
+            cert_q = cert_q.filter(
+                TrainingCertificate.action_item_id.in_(item_ids)
+            )
+        else:
+            cert_q = cert_q.filter(False)
+    total_certificates = cert_q.scalar() or 0
+
+    completion_rate = (
+        (total_completed / total_enrollments * 100)
+        if total_enrollments > 0
+        else 0
+    )
+
+    return {
+        "tenant_id": str(tenant_id),
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "summary": {
+            "total_educational_items": total_items,
+            "total_enrollments": total_enrollments,
+            "completed": total_completed,
+            "pending": total_pending,
+            "in_progress": total_enrollments - total_completed - total_pending,
+            "completion_rate": round(completion_rate, 1),
+            "certificates_issued": total_certificates,
+        },
+        "items": [
+            {
+                "id": str(item.id),
+                "title": item.title,
+                "status": item.status,
+                "control_hierarchy": getattr(item, "control_hierarchy", None),
+                "training_type": getattr(item, "training_type", None),
+                "enrollment_total": item.enrollment_total or 0,
+                "enrollment_completed": item.enrollment_completed or 0,
+                "enrollment_pending": item.enrollment_pending or 0,
+                "completion_rate": round(
+                    ((item.enrollment_completed or 0) / (item.enrollment_total or 1)) * 100,
+                    1,
+                ),
+            }
+            for item in items
         ],
     }

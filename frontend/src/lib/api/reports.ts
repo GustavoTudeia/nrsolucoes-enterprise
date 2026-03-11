@@ -86,3 +86,88 @@ export async function getPgrDossier(params?: { cnpj_id?: string; campaign_id?: s
   const tail = qs.toString() ? `?${qs.toString()}` : "";
   return apiFetch<PgrDossierOut>("console", `/reports/pgr-dossier${tail}`);
 }
+
+// ============ Readiness ============
+
+export interface ReadinessStep {
+  key: string;
+  label: string;
+  done: boolean;
+  description: string;
+}
+
+export interface ReadinessOut {
+  steps: ReadinessStep[];
+  done: number;
+  total: number;
+  completion_percentage: number;
+  overall_ready: boolean;
+}
+
+export async function getReadiness(): Promise<ReadinessOut> {
+  return apiFetch("console", "/reports/readiness");
+}
+
+// ============ Training Summary ============
+
+export interface TrainingSummaryItem {
+  id: string;
+  title: string;
+  status: string;
+  control_hierarchy?: string | null;
+  training_type?: string | null;
+  enrollment_total: number;
+  enrollment_completed: number;
+  enrollment_pending: number;
+  enrollment_in_progress: number;
+  completion_rate: number;
+}
+
+export interface TrainingSummaryOut {
+  tenant_id: string;
+  generated_at: string;
+  summary: {
+    total_educational_items: number;
+    total_enrollments: number;
+    completed: number;
+    pending: number;
+    in_progress: number;
+    expired: number;
+    completion_rate: number;
+    certificates_issued: number;
+  };
+  items: TrainingSummaryItem[];
+}
+
+export async function getTrainingSummary(params?: {
+  cnpj_id?: string;
+  org_unit_id?: string;
+}): Promise<TrainingSummaryOut> {
+  const qs = new URLSearchParams();
+  if (params?.cnpj_id) qs.set("cnpj_id", params.cnpj_id);
+  if (params?.org_unit_id) qs.set("org_unit_id", params.org_unit_id);
+  const q = qs.toString();
+  return apiFetch("console", `/reports/training-summary${q ? `?${q}` : ""}`);
+}
+
+// ============ PGR Dossier PDF Download ============
+
+export async function downloadPgrDossierPdf(params?: {
+  cnpj_id?: string;
+  campaign_id?: string;
+  limit_audit?: number;
+}): Promise<Blob> {
+  const qs = new URLSearchParams();
+  if (params?.cnpj_id) qs.set("cnpj_id", params.cnpj_id);
+  if (params?.campaign_id) qs.set("campaign_id", params.campaign_id);
+  if (params?.limit_audit) qs.set("limit_audit", String(params.limit_audit));
+  const q = qs.toString();
+
+  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  const token = typeof window !== "undefined" ? localStorage.getItem("access_token") || "" : "";
+  const res = await fetch(`${API_URL}/api/v1/reports/pgr-dossier/pdf${q ? `?${q}` : ""}`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!res.ok) throw new Error("Erro ao gerar PDF");
+  return res.blob();
+}
