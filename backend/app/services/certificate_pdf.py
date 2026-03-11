@@ -165,28 +165,28 @@ def generate_certificate_pdf(
     ))
     
     elements.append(Paragraph(
-        certificate.content_title,
+        certificate.training_title,
         content_style
     ))
-    
-    if certificate.content_description:
+
+    if certificate.training_description:
         elements.append(Paragraph(
-            certificate.content_description[:200] + ("..." if len(certificate.content_description or "") > 200 else ""),
+            certificate.training_description[:200] + ("..." if len(certificate.training_description or "") > 200 else ""),
             body_style
         ))
     
     # Informações adicionais
     elements.append(Spacer(1, 20))
     
-    duration_text = f"Carga horária: {certificate.duration_minutes} minutos" if certificate.duration_minutes else ""
+    duration_text = f"Carga horária: {certificate.training_duration_minutes} minutos" if certificate.training_duration_minutes else ""
     completion_date = certificate.training_completed_at.strftime("%d/%m/%Y") if certificate.training_completed_at else "N/A"
     issue_date = certificate.issued_at.strftime("%d/%m/%Y") if certificate.issued_at else "N/A"
     
     info_data = [
         ["Data de Conclusão:", completion_date, "Data de Emissão:", issue_date],
     ]
-    if certificate.duration_minutes:
-        info_data.append(["Carga Horária:", f"{certificate.duration_minutes} minutos", "", ""])
+    if certificate.training_duration_minutes:
+        info_data.append(["Carga Horária:", f"{certificate.training_duration_minutes} minutos", "", ""])
     
     info_table = Table(info_data, colWidths=[4*cm, 5*cm, 4*cm, 5*cm])
     info_table.setStyle(TableStyle([
@@ -205,9 +205,9 @@ def generate_certificate_pdf(
     elements.append(Spacer(1, 30))
     
     # Contexto NR-1
-    if certificate.action_item_title:
+    if certificate.action_plan_title:
         elements.append(Paragraph(
-            f"<i>Ação do Plano NR-1: {certificate.action_item_title}</i>",
+            f"<i>Ação do Plano NR-1: {certificate.action_plan_title}</i>",
             body_style
         ))
     
@@ -225,8 +225,41 @@ def generate_certificate_pdf(
             footer_style
         ))
     
+    # NR-1 Mandatory Information
+    nr1_info = []
+    if getattr(certificate, 'instructor_name', None):
+        instructor_text = f"Instrutor: {certificate.instructor_name}"
+        if getattr(certificate, 'instructor_qualification', None):
+            instructor_text += f" — {certificate.instructor_qualification}"
+        nr1_info.append(instructor_text)
+
+    if getattr(certificate, 'training_location', None):
+        nr1_info.append(f"Local: {certificate.training_location}")
+
+    if getattr(certificate, 'training_modality', None):
+        modality_labels = {"presential": "Presencial", "remote": "Remoto/EAD", "hybrid": "Híbrido"}
+        nr1_info.append(f"Modalidade: {modality_labels.get(certificate.training_modality, certificate.training_modality)}")
+
+    if getattr(certificate, 'formal_hours_minutes', None):
+        fh = certificate.formal_hours_minutes // 60
+        fm = certificate.formal_hours_minutes % 60
+        nr1_info.append(f"Carga horária formal: {fh}h{fm:02d}min" if fh > 0 else f"Carga horária formal: {fm} minutos")
+
+    if nr1_info:
+        elements.append(Spacer(1, 10))
+        for info in nr1_info:
+            elements.append(Paragraph(info, footer_style))
+
+    if getattr(certificate, 'syllabus', None):
+        elements.append(Spacer(1, 8))
+        elements.append(Paragraph("Conteúdo Programático:", ParagraphStyle("SyllTitle", parent=footer_style, fontName="Helvetica-Bold")))
+        syllabus_text = certificate.syllabus[:500]
+        if len(certificate.syllabus) > 500:
+            syllabus_text += "..."
+        elements.append(Paragraph(syllabus_text, ParagraphStyle("Syll", parent=footer_style, fontSize=9)))
+
     elements.append(Spacer(1, 10))
-    
+
     elements.append(Paragraph(
         "Este certificado atesta a conclusão de treinamento conforme requisitos da "
         "Norma Regulamentadora NR-1 (Portaria MTE nº 1.419/2024) para gestão de riscos psicossociais.",

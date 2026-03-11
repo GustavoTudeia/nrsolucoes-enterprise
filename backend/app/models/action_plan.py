@@ -131,6 +131,18 @@ class ActionItem(Base, UUIDPrimaryKeyMixin, TimestampMixin, TenantScopedMixin):
     notify_before_due = Column(Boolean, default=True)
     notify_days_before = Column(Integer, default=3)
 
+    # ===== NR-1 Compliance Fields =====
+    # Hierarquia de controles (NR-1 1.5.5.2)
+    control_hierarchy = Column(String(30), nullable=True, comment="elimination | substitution | epc | administrative | epi")
+    # Tipo de treinamento obrigatório (NR-1 1.5.5.3)
+    training_type = Column(String(30), nullable=True, comment="initial | periodic | eventual")
+    # Método de aferição de resultado
+    effectiveness_criteria = Column(Text, nullable=True)
+    # Periodicidade de monitoramento
+    monitoring_frequency = Column(String(50), nullable=True, comment="weekly | monthly | quarterly | semiannual | annual")
+    # Número de trabalhadores atingidos (referência)
+    affected_workers_count = Column(Integer, nullable=True)
+
     # Quem criou
     created_by_user_id = Column(GUID(), ForeignKey("user_account.id"), nullable=True)
 

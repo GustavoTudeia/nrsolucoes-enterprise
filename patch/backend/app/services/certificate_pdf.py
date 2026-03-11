@@ -165,28 +165,28 @@ def generate_certificate_pdf(
     ))
     
     elements.append(Paragraph(
-        certificate.content_title,
+        certificate.training_title,
         content_style
     ))
-    
-    if certificate.content_description:
+
+    if certificate.training_description:
         elements.append(Paragraph(
-            certificate.content_description[:200] + ("..." if len(certificate.content_description or "") > 200 else ""),
+            certificate.training_description[:200] + ("..." if len(certificate.training_description or "") > 200 else ""),
             body_style
         ))
     
     # Informações adicionais
     elements.append(Spacer(1, 20))
     
-    duration_text = f"Carga horária: {certificate.duration_minutes} minutos" if certificate.duration_minutes else ""
+    duration_text = f"Carga horária: {certificate.training_duration_minutes} minutos" if certificate.training_duration_minutes else ""
     completion_date = certificate.training_completed_at.strftime("%d/%m/%Y") if certificate.training_completed_at else "N/A"
     issue_date = certificate.issued_at.strftime("%d/%m/%Y") if certificate.issued_at else "N/A"
     
     info_data = [
         ["Data de Conclusão:", completion_date, "Data de Emissão:", issue_date],
     ]
-    if certificate.duration_minutes:
-        info_data.append(["Carga Horária:", f"{certificate.duration_minutes} minutos", "", ""])
+    if certificate.training_duration_minutes:
+        info_data.append(["Carga Horária:", f"{certificate.training_duration_minutes} minutos", "", ""])
     
     info_table = Table(info_data, colWidths=[4*cm, 5*cm, 4*cm, 5*cm])
     info_table.setStyle(TableStyle([
@@ -205,9 +205,9 @@ def generate_certificate_pdf(
     elements.append(Spacer(1, 30))
     
     # Contexto NR-1
-    if certificate.action_item_title:
+    if certificate.action_plan_title:
         elements.append(Paragraph(
-            f"<i>Ação do Plano NR-1: {certificate.action_item_title}</i>",
+            f"<i>Ação do Plano NR-1: {certificate.action_plan_title}</i>",
             body_style
         ))
     

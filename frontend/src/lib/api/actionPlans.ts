@@ -89,6 +89,11 @@ export interface ActionItemOut {
   related_dimension?: string | null;
   education_ref_type?: string | null;
   education_ref_id?: string | null;
+  control_hierarchy?: "elimination" | "substitution" | "epc" | "administrative" | "epi" | null;
+  training_type?: "initial" | "periodic" | "eventual" | null;
+  monitoring_frequency?: "weekly" | "monthly" | "quarterly" | "semiannual" | "annual" | null;
+  effectiveness_criteria?: string | null;
+  affected_workers_count?: number | null;
   created_by_user_id?: string | null;
   created_at: string;
   is_overdue: boolean;
@@ -98,6 +103,16 @@ export interface ActionItemOut {
   history?: ActionItemHistoryOut[] | null;
   evidence_count: number;
   comment_count: number;
+  // Enrollment targeting & stats
+  target_type?: string | null;
+  target_org_unit_id?: string | null;
+  target_cnpj_id?: string | null;
+  auto_enroll?: boolean;
+  enrollment_due_days?: number;
+  enrollment_total?: number;
+  enrollment_completed?: number;
+  enrollment_in_progress?: number;
+  enrollment_pending?: number;
 }
 
 export interface ActionPlanOut {
@@ -110,6 +125,7 @@ export interface ActionPlanOut {
   target_completion_date?: string | null;
   closed_at?: string | null;
   created_by_user_id?: string | null;
+  closed_by_user_id?: string | null;
   created_at: string;
   items?: ActionItemOut[] | null;
   stats?: ActionPlanStats | null;
@@ -236,6 +252,17 @@ export async function addActionItem(
     related_dimension?: string;
     education_ref_type?: string | null;
     education_ref_id?: string | null;
+    control_hierarchy?: string;
+    training_type?: string;
+    monitoring_frequency?: string;
+    effectiveness_criteria?: string;
+    affected_workers_count?: number;
+    // Enrollment targeting
+    target_type?: string;
+    target_org_unit_id?: string;
+    target_cnpj_id?: string;
+    auto_enroll?: boolean;
+    enrollment_due_days?: number;
     notify_on_assignment?: boolean;
     notify_before_due?: boolean;
     notify_days_before?: number;
@@ -261,6 +288,17 @@ export async function updateActionItem(
     related_dimension?: string;
     education_ref_type?: string | null;
     education_ref_id?: string | null;
+    control_hierarchy?: string | null;
+    training_type?: string | null;
+    monitoring_frequency?: string | null;
+    effectiveness_criteria?: string | null;
+    affected_workers_count?: number | null;
+    // Enrollment targeting
+    target_type?: string;
+    target_org_unit_id?: string;
+    target_cnpj_id?: string;
+    auto_enroll?: boolean;
+    enrollment_due_days?: number;
   }
 ) {
   return apiFetch<{ id: string }>(

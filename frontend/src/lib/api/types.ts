@@ -218,38 +218,8 @@ export interface RiskAssessmentOut {
   created_at: string;
 }
 
-export interface ActionEvidenceOut {
-  id: string;
-  action_item_id: string;
-  evidence_type: string;
-  reference: string;
-  note?: string | null;
-  created_at: string;
-}
-
-export interface ActionItemOut {
-  id: string;
-  action_plan_id: string;
-  item_type: "educational" | "organizational" | "administrative";
-  title: string;
-  description?: string | null;
-  responsible?: string | null;
-  due_date?: string | null;
-  status: string;
-  education_ref_type?: string | null;
-  education_ref_id?: string | null;
-  created_at: string;
-  evidences?: ActionEvidenceOut[] | null;
-}
-
-export interface ActionPlanOut {
-  id: string;
-  risk_assessment_id: string;
-  status: string;
-  version: number;
-  created_at: string;
-  items?: ActionItemOut[] | null;
-}
+// Action Plan types: canonical definitions in actionPlans.ts
+export type { ActionEvidenceOut, ActionItemOut, ActionPlanOut } from "./actionPlans";
 
 export interface LMSAssignmentOut {
   id: string;
@@ -394,3 +364,6 @@ export interface S2220ExamOut {
   created_at: string;
   updated_at: string;
 }
+
+// Re-export training types for backwards compatibility
+export type { EnrollmentOut, EnrollmentStats } from "./trainings";

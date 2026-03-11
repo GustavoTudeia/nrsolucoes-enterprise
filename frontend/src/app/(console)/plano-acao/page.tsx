@@ -21,11 +21,15 @@ import {
   createActionPlan, addActionItem, addEvidence, addComment, listActionPlans,
   listActionItems, updateActionItem, getActionItem, listAssignableUsers,
   uploadEvidenceFile, getEvidenceDownloadUrl,
+  deleteActionItem as apiDeleteActionItem,
+  deleteEvidence as apiDeleteEvidence,
+  deleteComment as apiDeleteComment,
+  updateComment as apiUpdateComment,
   type ActionPlanOut, type ActionItemOut, type ResponsibleUserInfo,
 } from "@/lib/api/actionPlans";
 import { listContents } from "@/lib/api/lms";
 import { useConsole } from "@/components/console/console-provider";
-import { AlertTriangle, Calendar, CheckCircle2, Clock, MessageSquare, Paperclip, Plus, TrendingUp, User, GraduationCap, Building2, ClipboardList, Users, Trash2, Send, Upload, Download, FileText, Link as LinkIcon } from "lucide-react";
+import { AlertTriangle, Calendar, CheckCircle2, Clock, MessageSquare, Paperclip, Plus, TrendingUp, User, GraduationCap, Building2, ClipboardList, Users, Trash2, Send, Upload, Download, FileText, Link as LinkIcon, Search, Shield, Pencil, Filter, UsersRound } from "lucide-react";
 
 const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
   planned: { label: "Planejado", color: "bg-slate-100 text-slate-700" },
@@ -46,6 +50,28 @@ const TYPE_CONFIG: Record<string, { label: string; icon: React.ReactNode }> = {
   organizational: { label: "Organizacional", icon: <Building2 className="h-3 w-3" /> },
   administrative: { label: "Administrativa", icon: <ClipboardList className="h-3 w-3" /> },
   support: { label: "Apoio", icon: <Users className="h-3 w-3" /> },
+};
+
+const CONTROL_HIERARCHY_CONFIG: Record<string, { label: string; color: string }> = {
+  elimination: { label: "Eliminação", color: "bg-emerald-100 text-emerald-700" },
+  substitution: { label: "Substituição/Redução", color: "bg-teal-100 text-teal-700" },
+  epc: { label: "EPC (Proteção Coletiva)", color: "bg-cyan-100 text-cyan-700" },
+  administrative: { label: "Administrativo", color: "bg-indigo-100 text-indigo-700" },
+  epi: { label: "EPI (Proteção Individual)", color: "bg-violet-100 text-violet-700" },
+};
+
+const TRAINING_TYPE_CONFIG: Record<string, { label: string }> = {
+  initial: { label: "Inicial" },
+  periodic: { label: "Periódico" },
+  eventual: { label: "Eventual" },
+};
+
+const MONITORING_FREQUENCY_CONFIG: Record<string, { label: string }> = {
+  weekly: { label: "Semanal" },
+  monthly: { label: "Mensal" },
+  quarterly: { label: "Trimestral" },
+  semiannual: { label: "Semestral" },
+  annual: { label: "Anual" },
 };
 
 const COLUMNS = [
@@ -89,6 +115,19 @@ export default function PlanoAcaoPage() {
   const [priority, setPriority] = useState("medium");
   const [educationRefId, setEducationRefId] = useState("");
 
+  // NR-1 form states
+  const [controlHierarchy, setControlHierarchy] = useState("");
+  const [trainingTypeField, setTrainingTypeField] = useState("");
+  const [monitoringFrequency, setMonitoringFrequency] = useState("");
+  const [effectivenessCriteria, setEffectivenessCriteria] = useState("");
+  const [affectedWorkersCount, setAffectedWorkersCount] = useState<number | "">("");
+
+  // Filter states
+  const [filterPriority, setFilterPriority] = useState("all");
+  const [filterType, setFilterType] = useState("all");
+  const [filterResponsible, setFilterResponsible] = useState("all");
+  const [filterSearch, setFilterSearch] = useState("");
+
   // Stats
   const stats = useMemo(() => {
     const total = items.length;
@@ -98,14 +137,24 @@ export default function PlanoAcaoPage() {
     return { total, done, overdue, inProgress, pct: total > 0 ? Math.round((done / total) * 100) : 0 };
   }, [items]);
 
+  const filteredItems = useMemo(() => {
+    return items.filter(i => {
+      if (filterPriority !== "all" && i.priority !== filterPriority) return false;
+      if (filterType !== "all" && i.item_type !== filterType) return false;
+      if (filterResponsible !== "all" && (i.responsible_user_id || "") !== filterResponsible) return false;
+      if (filterSearch.trim() && !i.title.toLowerCase().includes(filterSearch.toLowerCase())) return false;
+      return true;
+    });
+  }, [items, filterPriority, filterType, filterResponsible, filterSearch]);
+
   const byStatus = useMemo(() => {
     const map: Record<string, ActionItemOut[]> = { planned: [], in_progress: [], done: [] };
-    for (const i of items) {
+    for (const i of filteredItems) {
       const k = i.status || "planned";
       if (map[k]) map[k].push(i);
     }
     return map;
-  }, [items]);
+  }, [filteredItems]);
 
   async function loadAssessments() {
     try {
@@ -185,10 +234,16 @@ export default function PlanoAcaoPage() {
         payload.education_ref_type = "content_item";
         payload.education_ref_id = educationRefId;
       }
+      if (controlHierarchy) payload.control_hierarchy = controlHierarchy;
+      if (itemType === "educational" && trainingTypeField) payload.training_type = trainingTypeField;
+      if (monitoringFrequency) payload.monitoring_frequency = monitoringFrequency;
+      if (effectivenessCriteria.trim()) payload.effectiveness_criteria = effectivenessCriteria;
+      if (affectedWorkersCount !== "" && affectedWorkersCount > 0) payload.affected_workers_count = affectedWorkersCount;
       await addActionItem(planId, payload);
       toast.success("Item adicionado");
       await loadItems(planId);
       setTitle("Nova ação"); setDescription(""); setResponsible(""); setResponsibleUserId(""); setDueDate("");
+      setControlHierarchy(""); setTrainingTypeField(""); setMonitoringFrequency(""); setEffectivenessCriteria(""); setAffectedWorkersCount("");
     } catch (e: any) { toast.error(e?.message || "Erro"); }
   }
 
@@ -198,6 +253,15 @@ export default function PlanoAcaoPage() {
       toast.success("Status atualizado");
       await loadItems(planId);
     } catch (e: any) { toast.error(e?.message || "Erro"); }
+  }
+
+  async function onDeleteItem(itemId: string) {
+    if (!window.confirm("Tem certeza que deseja excluir este item? Esta ação não pode ser desfeita.")) return;
+    try {
+      await apiDeleteActionItem(itemId);
+      toast.success("Item excluído");
+      await loadItems(planId);
+    } catch (e: any) { toast.error(e?.message || "Erro ao excluir"); }
   }
 
   function openItemDrawer(item: ActionItemOut) {
@@ -288,6 +352,69 @@ export default function PlanoAcaoPage() {
         </CardContent>
       </Card>
 
+      {/* Filter Bar */}
+      {planId && (
+        <Card>
+          <CardContent className="pt-4 space-y-3">
+            <div className="flex items-center gap-2 mb-2">
+              <Filter className="h-4 w-4 text-muted-foreground" />
+              <span className="text-sm font-medium">Filtros</span>
+            </div>
+            <div className="flex flex-wrap gap-4">
+              {/* Search */}
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Buscar por título..."
+                  value={filterSearch}
+                  onChange={e => setFilterSearch(e.target.value)}
+                  className="pl-9"
+                />
+              </div>
+              {/* Priority filter */}
+              <div className="flex gap-1 items-center flex-wrap">
+                <span className="text-xs text-muted-foreground mr-1">Prioridade:</span>
+                {[{ key: "all", label: "Todas" }, { key: "low", label: "Baixa" }, { key: "medium", label: "Média" }, { key: "high", label: "Alta" }, { key: "critical", label: "Crítica" }].map(p => (
+                  <Button key={p.key} size="sm" variant={filterPriority === p.key ? "default" : "outline"} className="h-7 text-xs" onClick={() => setFilterPriority(p.key)}>
+                    {p.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-4">
+              {/* Type filter */}
+              <div className="flex gap-1 items-center flex-wrap">
+                <span className="text-xs text-muted-foreground mr-1">Tipo:</span>
+                {[{ key: "all", label: "Todos" }, { key: "educational", label: "Educativa" }, { key: "organizational", label: "Organizacional" }, { key: "administrative", label: "Administrativa" }, { key: "support", label: "Apoio" }].map(t => (
+                  <Button key={t.key} size="sm" variant={filterType === t.key ? "default" : "outline"} className="h-7 text-xs" onClick={() => setFilterType(t.key)}>
+                    {t.label}
+                  </Button>
+                ))}
+              </div>
+              {/* Responsible filter */}
+              <div className="flex gap-1 items-center">
+                <span className="text-xs text-muted-foreground mr-1">Responsável:</span>
+                <Select value={filterResponsible} onValueChange={setFilterResponsible}>
+                  <SelectTrigger className="h-7 w-[180px] text-xs"><SelectValue placeholder="Todos" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Todos</SelectItem>
+                    {users.map(u => <SelectItem key={u.id} value={u.id}>{u.full_name || u.email}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            {(filterPriority !== "all" || filterType !== "all" || filterResponsible !== "all" || filterSearch.trim()) && (
+              <div className="flex items-center gap-2">
+                <Badge variant="secondary" className="text-xs">{filteredItems.length} de {items.length} itens</Badge>
+                <Button size="sm" variant="ghost" className="h-6 text-xs" onClick={() => { setFilterPriority("all"); setFilterType("all"); setFilterResponsible("all"); setFilterSearch(""); }}>
+                  Limpar filtros
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Kanban */}
       {planId && (
         <Card>
@@ -320,6 +447,23 @@ export default function PlanoAcaoPage() {
                           {TYPE_CONFIG[item.item_type]?.icon}
                           <span>{TYPE_CONFIG[item.item_type]?.label}</span>
                         </div>
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {item.control_hierarchy && CONTROL_HIERARCHY_CONFIG[item.control_hierarchy] && (
+                            <Badge variant="outline" className={`text-[10px] px-1.5 py-0 ${CONTROL_HIERARCHY_CONFIG[item.control_hierarchy].color}`}>
+                              <Shield className="h-2.5 w-2.5 mr-0.5" />{CONTROL_HIERARCHY_CONFIG[item.control_hierarchy].label}
+                            </Badge>
+                          )}
+                          {item.item_type === "educational" && item.training_type && TRAINING_TYPE_CONFIG[item.training_type] && (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-purple-50 text-purple-700">
+                              <GraduationCap className="h-2.5 w-2.5 mr-0.5" />{TRAINING_TYPE_CONFIG[item.training_type].label}
+                            </Badge>
+                          )}
+                          {item.affected_workers_count != null && item.affected_workers_count > 0 && (
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0 bg-amber-50 text-amber-700">
+                              <UsersRound className="h-2.5 w-2.5 mr-0.5" />{item.affected_workers_count}
+                            </Badge>
+                          )}
+                        </div>
                         {item.responsible_user?.full_name || item.responsible ? (
                           <div className="flex items-center gap-1 mt-2 text-xs">
                             <User className="h-3 w-3" />
@@ -342,6 +486,9 @@ export default function PlanoAcaoPage() {
                               {c.label}
                             </Button>
                           ))}
+                          <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50" onClick={e => { e.stopPropagation(); onDeleteItem(item.id); }}>
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
                         </div>
                       </div>
                     ))}
@@ -413,6 +560,59 @@ export default function PlanoAcaoPage() {
                 </Select>
               </div>
             </div>
+            {/* NR-1 Fields */}
+            <div className="grid gap-2">
+              <Label>Hierarquia de Controles</Label>
+              <Select value={controlHierarchy || undefined} onValueChange={v => setControlHierarchy(v === "__none__" ? "" : v)}>
+                <SelectTrigger><SelectValue placeholder="Selecionar..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Nenhum</SelectItem>
+                  <SelectItem value="elimination">Eliminação</SelectItem>
+                  <SelectItem value="substitution">Substituição/Redução</SelectItem>
+                  <SelectItem value="epc">EPC (Proteção Coletiva)</SelectItem>
+                  <SelectItem value="administrative">Administrativo</SelectItem>
+                  <SelectItem value="epi">EPI (Proteção Individual)</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {itemType === "educational" && (
+              <div className="grid gap-2">
+                <Label>Tipo de Treinamento</Label>
+                <Select value={trainingTypeField || undefined} onValueChange={v => setTrainingTypeField(v === "__none__" ? "" : v)}>
+                  <SelectTrigger><SelectValue placeholder="Selecionar..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Nenhum</SelectItem>
+                    <SelectItem value="initial">Inicial</SelectItem>
+                    <SelectItem value="periodic">Periódico</SelectItem>
+                    <SelectItem value="eventual">Eventual</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="grid gap-2">
+                <Label>Frequência de Monitoramento</Label>
+                <Select value={monitoringFrequency || undefined} onValueChange={v => setMonitoringFrequency(v === "__none__" ? "" : v)}>
+                  <SelectTrigger><SelectValue placeholder="Selecionar..." /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Nenhum</SelectItem>
+                    <SelectItem value="weekly">Semanal</SelectItem>
+                    <SelectItem value="monthly">Mensal</SelectItem>
+                    <SelectItem value="quarterly">Trimestral</SelectItem>
+                    <SelectItem value="semiannual">Semestral</SelectItem>
+                    <SelectItem value="annual">Anual</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid gap-2">
+                <Label>Nº Trabalhadores Atingidos</Label>
+                <Input type="number" min={0} placeholder="0" value={affectedWorkersCount} onChange={e => setAffectedWorkersCount(e.target.value ? parseInt(e.target.value) : "")} />
+              </div>
+            </div>
+            <div className="grid gap-2">
+              <Label>Critério de Eficácia</Label>
+              <Textarea value={effectivenessCriteria} onChange={e => setEffectivenessCriteria(e.target.value)} rows={2} placeholder="Descreva como a eficácia será avaliada..." />
+            </div>
             {itemType === "educational" && contents.length > 0 && (
               <div className="grid gap-2">
                 <Label>Conteúdo LMS</Label>
@@ -467,10 +667,17 @@ function ItemDetailDrawer({ item, open, onClose, onUpdate, users, orgUnits, cnpj
   const [dueDate, setDueDate] = useState("");
   const [priority, setPriority] = useState("medium");
   const [status, setStatus] = useState("planned");
+  const [editControlHierarchy, setEditControlHierarchy] = useState("");
+  const [editTrainingType, setEditTrainingType] = useState("");
+  const [editMonitoringFrequency, setEditMonitoringFrequency] = useState("");
+  const [editEffectivenessCriteria, setEditEffectivenessCriteria] = useState("");
+  const [editAffectedWorkersCount, setEditAffectedWorkersCount] = useState<number | "">("");
   const [evType, setEvType] = useState("note");
   const [evRef, setEvRef] = useState("");
   const [evNote, setEvNote] = useState("");
   const [comment, setComment] = useState("");
+  const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
+  const [editingCommentContent, setEditingCommentContent] = useState("");
 
   useEffect(() => {
     if (item && open) {
@@ -484,6 +691,11 @@ function ItemDetailDrawer({ item, open, onClose, onUpdate, users, orgUnits, cnpj
           setDueDate(d.due_date ? d.due_date.split("T")[0] : "");
           setPriority(d.priority);
           setStatus(d.status);
+          setEditControlHierarchy(d.control_hierarchy || "");
+          setEditTrainingType(d.training_type || "");
+          setEditMonitoringFrequency(d.monitoring_frequency || "");
+          setEditEffectivenessCriteria(d.effectiveness_criteria || "");
+          setEditAffectedWorkersCount(d.affected_workers_count ?? "");
         })
         .finally(() => setLoading(false));
     }
@@ -493,7 +705,15 @@ function ItemDetailDrawer({ item, open, onClose, onUpdate, users, orgUnits, cnpj
     if (!fullItem) return;
     setLoading(true);
     try {
-      await updateActionItem(fullItem.id, { title, description, responsible_user_id: responsibleUserId || null, due_date: dueDate ? new Date(dueDate).toISOString() : null, priority, status });
+      await updateActionItem(fullItem.id, {
+        title, description, responsible_user_id: responsibleUserId || null,
+        due_date: dueDate ? new Date(dueDate).toISOString() : null, priority, status,
+        control_hierarchy: editControlHierarchy || null,
+        training_type: editTrainingType || null,
+        monitoring_frequency: editMonitoringFrequency || null,
+        effectiveness_criteria: editEffectivenessCriteria || null,
+        affected_workers_count: editAffectedWorkersCount !== "" ? editAffectedWorkersCount : null,
+      });
       toast.success("Atualizado");
       setEditMode(false);
       onUpdate();
@@ -592,6 +812,61 @@ function ItemDetailDrawer({ item, open, onClose, onUpdate, users, orgUnits, cnpj
                       </Select>
                     </div>
                   </div>
+                  {/* NR-1 Fields */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="grid gap-2">
+                      <Label>Hierarquia de Controles</Label>
+                      <Select value={editControlHierarchy || undefined} onValueChange={v => setEditControlHierarchy(v === "__none__" ? "" : v)}>
+                        <SelectTrigger><SelectValue placeholder="Selecionar..." /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Nenhum</SelectItem>
+                          <SelectItem value="elimination">Eliminação</SelectItem>
+                          <SelectItem value="substitution">Substituição/Redução</SelectItem>
+                          <SelectItem value="epc">EPC (Proteção Coletiva)</SelectItem>
+                          <SelectItem value="administrative">Administrativo</SelectItem>
+                          <SelectItem value="epi">EPI (Proteção Individual)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="grid gap-2">
+                      <Label>Frequência de Monitoramento</Label>
+                      <Select value={editMonitoringFrequency || undefined} onValueChange={v => setEditMonitoringFrequency(v === "__none__" ? "" : v)}>
+                        <SelectTrigger><SelectValue placeholder="Selecionar..." /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Nenhum</SelectItem>
+                          <SelectItem value="weekly">Semanal</SelectItem>
+                          <SelectItem value="monthly">Mensal</SelectItem>
+                          <SelectItem value="quarterly">Trimestral</SelectItem>
+                          <SelectItem value="semiannual">Semestral</SelectItem>
+                          <SelectItem value="annual">Anual</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                  {fullItem?.item_type === "educational" && (
+                    <div className="grid gap-2">
+                      <Label>Tipo de Treinamento</Label>
+                      <Select value={editTrainingType || undefined} onValueChange={v => setEditTrainingType(v === "__none__" ? "" : v)}>
+                        <SelectTrigger><SelectValue placeholder="Selecionar..." /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Nenhum</SelectItem>
+                          <SelectItem value="initial">Inicial</SelectItem>
+                          <SelectItem value="periodic">Periódico</SelectItem>
+                          <SelectItem value="eventual">Eventual</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="grid gap-2">
+                      <Label>Nº Trabalhadores Atingidos</Label>
+                      <Input type="number" min={0} placeholder="0" value={editAffectedWorkersCount} onChange={e => setEditAffectedWorkersCount(e.target.value ? parseInt(e.target.value) : "")} />
+                    </div>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label>Critério de Eficácia</Label>
+                    <Textarea value={editEffectivenessCriteria} onChange={e => setEditEffectivenessCriteria(e.target.value)} rows={2} placeholder="Descreva como a eficácia será avaliada..." />
+                  </div>
                   <div className="flex gap-2 pt-2">
                     <Button onClick={handleSave} disabled={loading}>Salvar</Button>
                     <Button variant="outline" onClick={() => setEditMode(false)}>Cancelar</Button>
@@ -604,6 +879,24 @@ function ItemDetailDrawer({ item, open, onClose, onUpdate, users, orgUnits, cnpj
                     <div><Label className="text-muted-foreground text-xs">Responsável</Label><p className="text-sm mt-1 flex items-center gap-1"><User className="h-3 w-3" />{fullItem?.responsible_user?.full_name || fullItem?.responsible || "Não atribuído"}</p></div>
                     <div><Label className="text-muted-foreground text-xs">Prazo</Label><p className="text-sm mt-1">{fullItem?.due_date ? new Date(fullItem.due_date).toLocaleDateString() : "—"}</p></div>
                   </div>
+                  {/* NR-1 Info */}
+                  <div className="grid grid-cols-2 gap-4">
+                    {fullItem?.control_hierarchy && CONTROL_HIERARCHY_CONFIG[fullItem.control_hierarchy] && (
+                      <div><Label className="text-muted-foreground text-xs">Hierarquia de Controles</Label><p className="text-sm mt-1"><Badge variant="outline" className={CONTROL_HIERARCHY_CONFIG[fullItem.control_hierarchy].color}><Shield className="h-3 w-3 mr-1" />{CONTROL_HIERARCHY_CONFIG[fullItem.control_hierarchy].label}</Badge></p></div>
+                    )}
+                    {fullItem?.item_type === "educational" && fullItem.training_type && TRAINING_TYPE_CONFIG[fullItem.training_type] && (
+                      <div><Label className="text-muted-foreground text-xs">Tipo de Treinamento</Label><p className="text-sm mt-1">{TRAINING_TYPE_CONFIG[fullItem.training_type].label}</p></div>
+                    )}
+                    {fullItem?.monitoring_frequency && MONITORING_FREQUENCY_CONFIG[fullItem.monitoring_frequency] && (
+                      <div><Label className="text-muted-foreground text-xs">Frequência de Monitoramento</Label><p className="text-sm mt-1">{MONITORING_FREQUENCY_CONFIG[fullItem.monitoring_frequency].label}</p></div>
+                    )}
+                    {fullItem?.affected_workers_count != null && fullItem.affected_workers_count > 0 && (
+                      <div><Label className="text-muted-foreground text-xs">Nº Trabalhadores Atingidos</Label><p className="text-sm mt-1 flex items-center gap-1"><UsersRound className="h-3 w-3" />{fullItem.affected_workers_count}</p></div>
+                    )}
+                  </div>
+                  {fullItem?.effectiveness_criteria && (
+                    <div><Label className="text-muted-foreground text-xs">Critério de Eficácia</Label><p className="text-sm mt-1 whitespace-pre-wrap">{fullItem.effectiveness_criteria}</p></div>
+                  )}
                   {fullItem?.started_at && <div><Label className="text-muted-foreground text-xs">Iniciado em</Label><p className="text-sm mt-1">{new Date(fullItem.started_at).toLocaleString()}</p></div>}
                   {fullItem?.completed_at && <div><Label className="text-muted-foreground text-xs">Concluído em</Label><p className="text-sm mt-1">{new Date(fullItem.completed_at).toLocaleString()}</p></div>}
                   <Button variant="outline" size="sm" onClick={() => setEditMode(true)}>Editar</Button>
@@ -680,6 +973,18 @@ function ItemDetailDrawer({ item, open, onClose, onUpdate, users, orgUnits, cnpj
                           <Download className="h-3 w-3" />
                         </Button>
                       )}
+                      <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-red-500 hover:text-red-700 hover:bg-red-50" onClick={async () => {
+                        if (!window.confirm("Excluir esta evidência?")) return;
+                        try {
+                          await apiDeleteEvidence(fullItem!.id, ev.id);
+                          toast.success("Evidência excluída");
+                          const d = await getActionItem(fullItem!.id, { include_evidences: true, include_comments: true, include_history: true });
+                          setFullItem(d);
+                          onUpdate();
+                        } catch (err: any) { toast.error(err?.message || "Erro ao excluir"); }
+                      }}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
                     </div>
                     {ev.note && <p className="text-xs text-muted-foreground mt-1">{ev.note}</p>}
                     <p className="text-xs text-muted-foreground mt-1">{ev.created_by_user?.full_name || "Sistema"} • {new Date(ev.created_at).toLocaleString()}</p>
@@ -692,8 +997,47 @@ function ItemDetailDrawer({ item, open, onClose, onUpdate, users, orgUnits, cnpj
               <div className="space-y-2 max-h-[250px] overflow-y-auto">
                 {(fullItem?.comments || []).map(c => (
                   <div key={c.id} className="p-2 rounded border bg-muted/30 text-sm">
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground"><User className="h-3 w-3" />{c.user?.full_name || c.user?.email || "?"} • {new Date(c.created_at).toLocaleString()}</div>
-                    <p className="mt-1">{c.content}</p>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <User className="h-3 w-3" />{c.user?.full_name || c.user?.email || "?"} • {new Date(c.created_at).toLocaleString()}
+                      {c.edited_at && <span className="italic">(editado)</span>}
+                      <div className="ml-auto flex gap-0.5">
+                        <Button size="sm" variant="ghost" className="h-5 w-5 p-0 text-muted-foreground hover:text-foreground" onClick={() => { setEditingCommentId(c.id); setEditingCommentContent(c.content); }}>
+                          <Pencil className="h-3 w-3" />
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-5 w-5 p-0 text-red-500 hover:text-red-700 hover:bg-red-50" onClick={async () => {
+                          if (!window.confirm("Excluir este comentário?")) return;
+                          try {
+                            await apiDeleteComment(fullItem!.id, c.id);
+                            toast.success("Comentário excluído");
+                            const d = await getActionItem(fullItem!.id, { include_evidences: true, include_comments: true, include_history: true });
+                            setFullItem(d);
+                            onUpdate();
+                          } catch (err: any) { toast.error(err?.message || "Erro ao excluir"); }
+                        }}>
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                    {editingCommentId === c.id ? (
+                      <div className="mt-1 flex gap-1">
+                        <Textarea value={editingCommentContent} onChange={e => setEditingCommentContent(e.target.value)} rows={2} className="flex-1 text-sm" />
+                        <div className="flex flex-col gap-1">
+                          <Button size="sm" className="h-7 text-xs" onClick={async () => {
+                            try {
+                              await apiUpdateComment(fullItem!.id, c.id, { content: editingCommentContent });
+                              toast.success("Comentário atualizado");
+                              setEditingCommentId(null);
+                              const d = await getActionItem(fullItem!.id, { include_evidences: true, include_comments: true, include_history: true });
+                              setFullItem(d);
+                              onUpdate();
+                            } catch (err: any) { toast.error(err?.message || "Erro"); }
+                          }} disabled={!editingCommentContent.trim()}>Salvar</Button>
+                          <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setEditingCommentId(null)}>Cancelar</Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="mt-1">{c.content}</p>
+                    )}
                   </div>
                 ))}
                 {(fullItem?.comments || []).length === 0 && <p className="text-sm text-muted-foreground text-center py-4">Nenhum comentário</p>}

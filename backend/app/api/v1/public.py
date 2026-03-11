@@ -8,6 +8,7 @@ from app.db.session import get_db
 from app.models.tenant import Tenant, TenantSettings
 from app.models.campaign import Campaign
 from app.models.questionnaire import QuestionnaireVersion
+from app.models.training import TrainingCertificate
 from app.models.org import OrgUnit
 from app.core.errors import NotFound, Forbidden
 
@@ -57,3 +58,48 @@ def get_public_campaign(campaign_id: UUID, db: Session = Depends(get_db)):
         "questionnaire_version_id": str(qv.id),
         "questionnaire": qv.content,
     }
+
+
+@router.get("/certificates/validate/{code}")
+def validate_certificate_public(code: str, db: Session = Depends(get_db)):
+    """Valida certificado pelo código de validação (endpoint público).
+
+    Qualquer pessoa com o código pode verificar a autenticidade do certificado.
+    """
+    cert = (
+        db.query(TrainingCertificate)
+        .filter(TrainingCertificate.validation_code == code)
+        .first()
+    )
+
+    if not cert:
+        return {
+            "valid": False,
+            "message": "Certificado não encontrado com este código de validação.",
+        }
+
+    is_valid = cert.is_valid if hasattr(cert, "is_valid") else True
+    if cert.valid_until and cert.valid_until < __import__("datetime").datetime.utcnow():
+        is_valid = False
+
+    result = {
+        "valid": is_valid,
+        "certificate_number": cert.certificate_number,
+        "employee_name": cert.employee_name,
+        "training_title": cert.training_title,
+        "training_description": cert.training_description,
+        "issued_at": cert.issued_at.isoformat() if cert.issued_at else None,
+        "valid_until": cert.valid_until.isoformat() if cert.valid_until else None,
+        "issuer_name": cert.issuer_name,
+        "issuer_cnpj": cert.issuer_cnpj,
+        "training_completed_at": cert.training_completed_at.isoformat() if cert.training_completed_at else None,
+        "training_duration_minutes": cert.training_duration_minutes,
+        "risk_dimension": cert.risk_dimension,
+    }
+
+    if is_valid:
+        result["message"] = "Certificado válido."
+    else:
+        result["message"] = f"Certificado expirado em {cert.valid_until.strftime('%d/%m/%Y')}." if cert.valid_until else "Certificado inválido."
+
+    return result

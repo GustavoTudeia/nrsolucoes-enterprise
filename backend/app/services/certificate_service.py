@@ -66,6 +66,12 @@ class CertificateService:
         enrollment: ActionItemEnrollment,
         valid_months: Optional[int] = None,
         signed_by_user_id: Optional[UUID] = None,
+        instructor_name: Optional[str] = None,
+        instructor_qualification: Optional[str] = None,
+        training_location: Optional[str] = None,
+        syllabus: Optional[str] = None,
+        training_modality: Optional[str] = None,
+        formal_hours_minutes: Optional[int] = None,
     ) -> TrainingCertificate:
         """Cria certificado para uma matrícula concluída."""
 
@@ -156,6 +162,13 @@ class CertificateService:
             # Assinatura
             signed_by_user_id=signed_by_user_id,
             signed_at=datetime.utcnow() if signed_by_user_id else None,
+            # NR-1 mandatory fields
+            instructor_name=instructor_name,
+            instructor_qualification=instructor_qualification,
+            training_location=training_location,
+            syllabus=syllabus,
+            training_modality=training_modality,
+            formal_hours_minutes=formal_hours_minutes,
         )
 
         self.db.add(cert)
@@ -357,6 +370,40 @@ class CertificateService:
                 )
             )
 
+        # NR-1 Mandatory Information
+        nr1_info = []
+        if certificate.instructor_name:
+            instructor_text = f"Instrutor: {certificate.instructor_name}"
+            if certificate.instructor_qualification:
+                instructor_text += f" — {certificate.instructor_qualification}"
+            nr1_info.append(instructor_text)
+
+        if certificate.training_location:
+            nr1_info.append(f"Local: {certificate.training_location}")
+
+        if certificate.training_modality:
+            modality_labels = {"presential": "Presencial", "remote": "Remoto/EAD", "hybrid": "Híbrido"}
+            nr1_info.append(f"Modalidade: {modality_labels.get(certificate.training_modality, certificate.training_modality)}")
+
+        if certificate.formal_hours_minutes:
+            fh = certificate.formal_hours_minutes // 60
+            fm = certificate.formal_hours_minutes % 60
+            nr1_info.append(f"Carga horária formal: {fh}h{fm:02d}min" if fh > 0 else f"Carga horária formal: {fm} minutos")
+
+        if nr1_info:
+            elements.append(Spacer(1, 10))
+            for info in nr1_info:
+                elements.append(Paragraph(info, footer_style))
+
+        if certificate.syllabus:
+            elements.append(Spacer(1, 8))
+            elements.append(Paragraph("Conteúdo Programático:", ParagraphStyle("SyllTitle", parent=footer_style, fontName="Helvetica-Bold")))
+            # Truncate syllabus for PDF readability
+            syllabus_text = certificate.syllabus[:500]
+            if len(certificate.syllabus) > 500:
+                syllabus_text += "..."
+            elements.append(Paragraph(syllabus_text, ParagraphStyle("Syll", parent=footer_style, fontSize=9)))
+
         # Build PDF
         doc.build(elements)
 
@@ -385,7 +432,7 @@ Emitido em: {certificate.issued_at.strftime('%d/%m/%Y')}
         pdf_hash = hashlib.sha256(pdf_bytes).hexdigest()
         return pdf_bytes, pdf_hash
 
-    def save_pdf(self, certificate: TrainingCertificate) -> str:
+    def save_pdf(self, certificate: TrainingCertificate) -> Optional[str]:
         """Gera e salva PDF do certificado no storage."""
         pdf_content, pdf_hash = self.generate_pdf(certificate)
 
@@ -394,21 +441,21 @@ Emitido em: {certificate.issued_at.strftime('%d/%m/%Y')}
         storage_key = f"{key_prefix}/certificates/{certificate.id}/{certificate.certificate_number}.pdf"
 
         # Upload direto
+        uploaded = False
         try:
             upload_bytes(storage_key, pdf_content, "application/pdf")
+            uploaded = True
         except Exception as e:
-            # Log do erro para debug
             print(f"[CERT] Erro ao fazer upload do PDF: {e}")
-            # Se falhar, apenas salvar referência
-            pass
 
-        # Atualizar certificado
-        certificate.pdf_storage_key = storage_key
-        certificate.pdf_file_size = len(pdf_content)
-        certificate.pdf_hash = pdf_hash
-        self.db.add(certificate)
+        # Atualizar certificado apenas se upload bem-sucedido
+        if uploaded:
+            certificate.pdf_storage_key = storage_key
+            certificate.pdf_file_size = len(pdf_content)
+            certificate.pdf_hash = pdf_hash
+            self.db.add(certificate)
 
-        return storage_key
+        return storage_key if uploaded else None
 
     def validate_certificate(
         self, validation_code: str

@@ -57,8 +57,8 @@ def download_certificate_pdf(
         upload_bytes(storage_key, pdf_bytes, content_type="application/pdf")
         
         cert.pdf_storage_key = storage_key
-        cert.pdf_generated_at = datetime.utcnow()
         cert.pdf_hash = pdf_hash
+        cert.pdf_file_size = len(pdf_bytes)
         db.add(cert)
         db.commit()
     except Exception:
@@ -126,13 +126,12 @@ def generate_certificate_pdfs(
                 upload_bytes(storage_key, pdf_bytes, content_type="application/pdf")
                 
                 cert.pdf_storage_key = storage_key
-                cert.pdf_generated_at = datetime.utcnow()
                 cert.pdf_hash = pdf_hash
+                cert.pdf_file_size = len(pdf_bytes)
                 db.add(cert)
             except Exception:
                 # Mesmo sem storage, marca como gerado (pode ser baixado on-demand)
                 cert.pdf_hash = pdf_hash
-                cert.pdf_generated_at = datetime.utcnow()
                 db.add(cert)
             
             generated += 1
@@ -176,7 +175,7 @@ def validate_certificate(
         "valid": True,
         "certificate_number": cert.certificate_number,
         "employee_name": cert.employee_name,
-        "content_title": cert.content_title,
+        "training_title": cert.training_title,
         "training_completed_at": cert.training_completed_at.isoformat() if cert.training_completed_at else None,
         "issued_at": cert.issued_at.isoformat() if cert.issued_at else None,
     }

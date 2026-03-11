@@ -26,7 +26,7 @@ from datetime import datetime
 from typing import Optional, List
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, HTTPException, Response
+from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func

@@ -45,6 +45,7 @@ class ActionPlanOut(BaseModel):
     target_completion_date: Optional[datetime] = None
     closed_at: Optional[datetime] = None
     created_by_user_id: Optional[UUID] = None
+    closed_by_user_id: Optional[UUID] = None
     created_at: datetime
     items: Optional[List["ActionItemOut"]] = None
 
@@ -93,6 +94,18 @@ class ActionItemCreate(BaseModel):
     notify_on_assignment: bool = True
     notify_before_due: bool = True
     notify_days_before: int = 3
+    # NR-1 Compliance
+    control_hierarchy: Optional[str] = Field(None, description="elimination | substitution | epc | administrative | epi")
+    training_type: Optional[str] = Field(None, description="initial | periodic | eventual")
+    effectiveness_criteria: Optional[str] = None
+    monitoring_frequency: Optional[str] = Field(None, description="weekly | monthly | quarterly | semiannual | annual")
+    affected_workers_count: Optional[int] = None
+    # Enrollment targeting (for educational items)
+    target_type: Optional[str] = Field(None, description="all_employees | org_unit | cnpj | selected")
+    target_org_unit_id: Optional[UUID] = None
+    target_cnpj_id: Optional[UUID] = None
+    auto_enroll: bool = True
+    enrollment_due_days: int = Field(30, ge=1, le=365)
 
 
 class ActionItemUpdate(BaseModel):
@@ -111,6 +124,18 @@ class ActionItemUpdate(BaseModel):
     notify_on_assignment: Optional[bool] = None
     notify_before_due: Optional[bool] = None
     notify_days_before: Optional[int] = None
+    # NR-1 Compliance
+    control_hierarchy: Optional[str] = None
+    training_type: Optional[str] = None
+    effectiveness_criteria: Optional[str] = None
+    monitoring_frequency: Optional[str] = None
+    affected_workers_count: Optional[int] = None
+    # Enrollment targeting
+    target_type: Optional[str] = None
+    target_org_unit_id: Optional[UUID] = None
+    target_cnpj_id: Optional[UUID] = None
+    auto_enroll: Optional[bool] = None
+    enrollment_due_days: Optional[int] = Field(None, ge=1, le=365)
 
 
 class ResponsibleUserInfo(BaseModel):
@@ -153,6 +178,22 @@ class ActionItemOut(BaseModel):
     # Contagens
     evidence_count: int = 0
     comment_count: int = 0
+    # NR-1 Compliance
+    control_hierarchy: Optional[str] = None
+    training_type: Optional[str] = None
+    effectiveness_criteria: Optional[str] = None
+    monitoring_frequency: Optional[str] = None
+    affected_workers_count: Optional[int] = None
+    # Enrollment targeting & stats
+    target_type: Optional[str] = None
+    target_org_unit_id: Optional[UUID] = None
+    target_cnpj_id: Optional[UUID] = None
+    auto_enroll: bool = True
+    enrollment_due_days: int = 30
+    enrollment_total: int = 0
+    enrollment_completed: int = 0
+    enrollment_in_progress: int = 0
+    enrollment_pending: int = 0
 
 
 # =============================================================================

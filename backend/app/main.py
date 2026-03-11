@@ -14,6 +14,9 @@ from app.models import *  # noqa
 from app.services.seed import seed_platform_defaults
 from app.db.bootstrap_migrations import apply_bootstrap_migrations
 
+import logging
+logger = logging.getLogger(__name__)
+
 def create_app() -> FastAPI:
     configure_logging()
     app = FastAPI(title=settings.APP_NAME, version=settings.APP_VERSION)
@@ -45,6 +48,26 @@ def create_app() -> FastAPI:
             seed_platform_defaults(db)
         finally:
             db.close()
+
+        # Expire overdue enrollments for all active tenants
+        try:
+            from app.services.enrollment_service import EnrollmentService
+            from app.models.tenant import Tenant
+            db = SessionLocal()
+            try:
+                tenants = db.query(Tenant).filter(Tenant.is_active == True).all()
+                total_expired = 0
+                for tenant in tenants:
+                    service = EnrollmentService(db)
+                    count = service.expire_overdue(tenant.id)
+                    total_expired += count
+                db.commit()
+                if total_expired > 0:
+                    logger.info(f"schema-bootstrap: expired {total_expired} overdue enrollments")
+            finally:
+                db.close()
+        except Exception as e:
+            logger.warning(f"Failed to expire overdue enrollments: {e}")
 
     return app
 

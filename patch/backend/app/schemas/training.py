@@ -27,6 +27,7 @@ class TargetType(str, Enum):
     """Tipos de público-alvo para item educativo."""
     ALL_EMPLOYEES = "all_employees"
     ORG_UNIT = "org_unit"
+    CNPJ = "cnpj"
     SELECTED = "selected"
 
 

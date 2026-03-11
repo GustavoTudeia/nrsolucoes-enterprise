@@ -426,4 +426,27 @@ def apply_bootstrap_migrations(engine: Engine) -> None:
                 )
                 logger.info(f"schema-bootstrap: created default risk criterion {criterion_id}")
 
+        # ========================================
+        # ACTION ITEM - NR-1 COMPLIANCE FIELDS
+        # ========================================
+        if _pg_table_exists(conn, "action_item"):
+            logger.info("schema-bootstrap: ensuring action_item NR-1 compliance columns")
+            _add_column_if_missing(conn, "action_item", "control_hierarchy", "VARCHAR(30)")
+            _add_column_if_missing(conn, "action_item", "training_type", "VARCHAR(30)")
+            _add_column_if_missing(conn, "action_item", "effectiveness_criteria", "TEXT")
+            _add_column_if_missing(conn, "action_item", "monitoring_frequency", "VARCHAR(50)")
+            _add_column_if_missing(conn, "action_item", "affected_workers_count", "INTEGER")
+
+        # ========================================
+        # TRAINING CERTIFICATE - NR-1 FIELDS
+        # ========================================
+        if _pg_table_exists(conn, "training_certificate"):
+            logger.info("schema-bootstrap: ensuring training_certificate NR-1 fields")
+            _add_column_if_missing(conn, "training_certificate", "instructor_name", "VARCHAR(200)")
+            _add_column_if_missing(conn, "training_certificate", "instructor_qualification", "VARCHAR(300)")
+            _add_column_if_missing(conn, "training_certificate", "training_location", "VARCHAR(300)")
+            _add_column_if_missing(conn, "training_certificate", "syllabus", "TEXT")
+            _add_column_if_missing(conn, "training_certificate", "training_modality", "VARCHAR(30)")
+            _add_column_if_missing(conn, "training_certificate", "formal_hours_minutes", "INTEGER")
+
     logger.info("schema-bootstrap: done")

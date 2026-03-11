@@ -19,11 +19,13 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.errors import NotFound, BadRequest, Forbidden
 from app.core.security import create_access_token
 from app.db.session import get_db
 from app.models.employee import Employee
 from app.models.employee_auth import EmployeeOtpToken, EmployeeMagicLinkToken
+from app.services.email_service import email_service
 
 router = APIRouter(prefix="/employee/auth", tags=["employee-auth"])
 
@@ -154,20 +156,39 @@ def request_otp(
     db.add(otp_token)
     db.commit()
 
-    # TODO: Enviar OTP por email/SMS
-    # Por enquanto, em desenvolvimento, logamos o código
+    # Determinar email de destino (campo email ou identifier se for email)
+    dest_email = employee.email
+    if not dest_email and "@" in (employee.identifier or ""):
+        dest_email = employee.identifier
+
+    # Enviar OTP por email
+    if dest_email:
+        try:
+            sent = email_service.send_otp_code(
+                to_email=dest_email,
+                code=otp_code,
+                user_name=employee.full_name or employee.identifier,
+            )
+            if not sent:
+                print(f"[WARN] email_service retornou False para {dest_email}")
+        except Exception as e:
+            print(f"[WARN] Falha ao enviar OTP por email para {dest_email}: {e}")
+    else:
+        print(f"[WARN] Colaborador {employee.identifier} sem email cadastrado")
+
+    # Log em desenvolvimento
     print(f"[DEV] OTP para {employee.identifier}: {otp_code}")
 
-    # Em produção, integrar com serviço de email/SMS
-    # send_otp_email(employee.email, otp_code)
-    # send_otp_sms(employee.phone, otp_code)
-
-    return {
+    response = {
         "message": "Código enviado com sucesso.",
         "expires_in_seconds": 600,
-        # Em desenvolvimento, retornamos o código (REMOVER EM PRODUÇÃO!)
-        "_dev_code": otp_code,
     }
+
+    # Em desenvolvimento, retorna o código na resposta
+    if settings.DEV_RETURN_OTP:
+        response["_dev_code"] = otp_code
+
+    return response
 
 
 @router.post("/otp/verify", response_model=EmployeeLoginResponse)

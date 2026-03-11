@@ -31,7 +31,7 @@ import {
   enrollEmployees, listEnrollments, getEnrollmentStats,
   generateCertificates, type EnrollTargetPayload
 } from "@/lib/api/trainings";
-import type { EnrollmentOut, EnrollmentStats } from "@/lib/api/types";
+import type { EnrollmentOut, EnrollmentStats } from "@/lib/api/trainings";
 
 interface EnrollmentsTabProps {
   itemId: string;
@@ -60,7 +60,7 @@ export default function EnrollmentsTab({ itemId, itemType, tenantSlug, onUpdate,
 
   // Modal de sucesso após matrícula
   const [successDialogOpen, setSuccessDialogOpen] = useState(false);
-  const [enrollmentResult, setEnrollmentResult] = useState<{ enrolled: number; skipped: number } | null>(null);
+  const [enrollmentResult, setEnrollmentResult] = useState<{ enrolled: number; already_enrolled: number } | null>(null);
 
   // Formulário de matrícula
   const [targetType, setTargetType] = useState<string>("org_unit");
@@ -125,7 +125,7 @@ export default function EnrollmentsTab({ itemId, itemType, tenantSlug, onUpdate,
 
       if (result.generated > 0) {
         toast.success(`${result.generated} certificado(s) gerado(s)!`);
-      } else if (result.skipped > 0) {
+      } else if (result.already_enrolled > 0) {
         toast.info("Todos os certificados já foram gerados.");
       } else {
         toast.info("Nenhum colaborador elegível para certificado.");
@@ -159,7 +159,7 @@ export default function EnrollmentsTab({ itemId, itemType, tenantSlug, onUpdate,
     );
   }
 
-  const completionPct = stats?.completion_percentage ?? 0;
+  const completionPct = stats?.completion_rate ?? 0;
 
   return (
     <div className="space-y-4">
@@ -285,7 +285,7 @@ export default function EnrollmentsTab({ itemId, itemType, tenantSlug, onUpdate,
                 const dueDate = enrollment.due_date
                   ? new Date(enrollment.due_date).toLocaleDateString("pt-BR")
                   : "-";
-                const progress = enrollment.progress_percent ?? enrollment.progress_percentage ?? 0;
+                const progress = enrollment.progress_percent ?? 0;
 
                 return (
                   <TableRow key={enrollment.id}>
@@ -439,7 +439,7 @@ export default function EnrollmentsTab({ itemId, itemType, tenantSlug, onUpdate,
             </DialogTitle>
             <DialogDescription>
               {enrollmentResult?.enrolled} colaborador(es) foram matriculados com sucesso.
-              {enrollmentResult?.skipped ? ` ${enrollmentResult.skipped} já estavam matriculados.` : ""}
+              {enrollmentResult?.skipped ? ` ${enrollmentResult.already_enrolled} já estavam matriculados.` : ""}
             </DialogDescription>
           </DialogHeader>
 

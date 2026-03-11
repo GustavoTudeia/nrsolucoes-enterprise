@@ -30,7 +30,7 @@ import {
   enrollEmployees, listEnrollments, getEnrollmentStats, 
   generateCertificates, type EnrollTargetPayload 
 } from "@/lib/api/trainings";
-import type { EnrollmentOut, EnrollmentStats } from "@/lib/api/types";
+import type { EnrollmentOut, EnrollmentStats } from "@/lib/api/trainings";
 
 interface EnrollmentsTabProps {
   itemId: string;
@@ -105,8 +105,8 @@ export default function EnrollmentsTab({ itemId, itemType, onUpdate, orgUnits = 
       const result = await enrollEmployees(itemId, payload);
       
       toast.success(`${result.enrolled} colaborador(es) matriculado(s)!`);
-      if (result.skipped > 0) {
-        toast.info(`${result.skipped} já estavam matriculados.`);
+      if (result.already_enrolled > 0) {
+        toast.info(`${result.already_enrolled} já estavam matriculados.`);
       }
       
       setEnrollDialogOpen(false);
@@ -126,7 +126,7 @@ export default function EnrollmentsTab({ itemId, itemType, onUpdate, orgUnits = 
       
       if (result.generated > 0) {
         toast.success(`${result.generated} certificado(s) gerado(s)!`);
-      } else if (result.skipped > 0) {
+      } else if (result.already_enrolled > 0) {
         toast.info("Todos os certificados já foram gerados.");
       } else {
         toast.info("Nenhum colaborador elegível para certificado.");
@@ -145,7 +145,7 @@ export default function EnrollmentsTab({ itemId, itemType, onUpdate, orgUnits = 
     loadData();
   }, [itemId]);
 
-  const completionPct = stats ? stats.completion_percentage : 0;
+  const completionPct = stats ? stats.completion_rate : 0;
 
   return (
     <div className="space-y-4">
@@ -267,8 +267,8 @@ export default function EnrollmentsTab({ itemId, itemType, onUpdate, orgUnits = 
                     </TableCell>
                     <TableCell>
                       <div className="flex items-center gap-2">
-                        <Progress value={enrollment.progress_percentage} className="h-1.5 w-16" />
-                        <span className="text-xs">{enrollment.progress_percentage}%</span>
+                        <Progress value={enrollment.progress_percent} className="h-1.5 w-16" />
+                        <span className="text-xs">{enrollment.progress_percent}%</span>
                       </div>
                     </TableCell>
                     <TableCell className={enrollment.is_overdue ? "text-red-600 font-medium" : ""}>

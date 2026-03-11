@@ -27,6 +27,7 @@ class TargetType(str, Enum):
     """Tipos de público-alvo para item educativo."""
     ALL_EMPLOYEES = "all_employees"
     ORG_UNIT = "org_unit"
+    CNPJ = "cnpj"
     SELECTED = "selected"
 
 
@@ -114,6 +115,13 @@ class CertificateCreate(BaseModel):
     training_description: Optional[str] = None
     training_duration_minutes: Optional[int] = None
     valid_months: Optional[int] = Field(None, ge=1, le=120, description="Validade em meses")
+    # NR-1 fields
+    instructor_name: Optional[str] = None
+    instructor_qualification: Optional[str] = None
+    training_location: Optional[str] = None
+    syllabus: Optional[str] = None
+    training_modality: Optional[str] = Field(None, description="presential | remote | hybrid")
+    formal_hours_minutes: Optional[int] = None
 
 
 class CertificateOut(BaseModel):
@@ -145,7 +153,14 @@ class CertificateOut(BaseModel):
     
     issuer_name: Optional[str] = None
     issuer_cnpj: Optional[str] = None
-    
+    # NR-1 mandatory certificate fields
+    instructor_name: Optional[str] = None
+    instructor_qualification: Optional[str] = None
+    training_location: Optional[str] = None
+    syllabus: Optional[str] = None
+    training_modality: Optional[str] = None
+    formal_hours_minutes: Optional[int] = None
+
     created_at: datetime
 
 

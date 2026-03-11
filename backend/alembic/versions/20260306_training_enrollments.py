@@ -150,25 +150,38 @@ def upgrade():
     # Campos para público-alvo
     op.add_column('action_item', sa.Column('target_type', sa.String(30), nullable=True))
     op.add_column('action_item', sa.Column('target_org_unit_id', postgresql.UUID(as_uuid=True), nullable=True))
+    op.add_column('action_item', sa.Column('target_cnpj_id', postgresql.UUID(as_uuid=True), nullable=True))
     op.add_column('action_item', sa.Column('auto_enroll', sa.Boolean(), nullable=False, server_default='true'))
     op.add_column('action_item', sa.Column('enrollment_due_days', sa.Integer(), nullable=False, server_default='30'))
+    op.add_column('action_item', sa.Column('require_all_completions', sa.Boolean(), nullable=False, server_default='true'))
+    op.add_column('action_item', sa.Column('auto_complete_on_all_done', sa.Boolean(), nullable=False, server_default='true'))
     
-    # Foreign key para org_unit
+    # Foreign keys para org_unit e cnpj
     op.create_foreign_key(
         'fk_action_item_target_org_unit',
         'action_item', 'org_unit',
         ['target_org_unit_id'], ['id'],
         ondelete='SET NULL'
     )
+    op.create_foreign_key(
+        'fk_action_item_target_cnpj',
+        'action_item', 'cnpj',
+        ['target_cnpj_id'], ['id'],
+        ondelete='SET NULL'
+    )
 
 
 def downgrade():
-    # Remover foreign key
+    # Remover foreign keys
+    op.drop_constraint('fk_action_item_target_cnpj', 'action_item', type_='foreignkey')
     op.drop_constraint('fk_action_item_target_org_unit', 'action_item', type_='foreignkey')
-    
+
     # Remover colunas de action_item
+    op.drop_column('action_item', 'auto_complete_on_all_done')
+    op.drop_column('action_item', 'require_all_completions')
     op.drop_column('action_item', 'enrollment_due_days')
     op.drop_column('action_item', 'auto_enroll')
+    op.drop_column('action_item', 'target_cnpj_id')
     op.drop_column('action_item', 'target_org_unit_id')
     op.drop_column('action_item', 'target_type')
     

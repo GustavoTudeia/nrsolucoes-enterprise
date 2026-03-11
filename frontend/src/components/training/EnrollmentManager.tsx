@@ -66,7 +66,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { useToast } from "@/components/ui/use-toast";
-import { apiFetch } from "@/lib/api";
+import { apiFetch } from "@/lib/api/client";
 
 // Types
 interface EnrollmentStats {
@@ -139,17 +139,17 @@ export function EnrollmentManager({
     setLoading(true);
     try {
       // Carregar estatísticas
-      const statsRes = await apiFetch(`/trainings/items/${itemId}/enrollment-stats`);
+      const statsRes = await apiFetch("console", `/trainings/items/${itemId}/enrollment-stats`);
       setStats(statsRes);
 
       // Carregar matrículas
       const enrollRes = await apiFetch(
-        `/trainings/items/${itemId}/enrollments?limit=100${statusFilter !== "all" ? `&status=${statusFilter}` : ""}`
+        "console", `/trainings/items/${itemId}/enrollments?limit=100${statusFilter !== "all" ? `&status=${statusFilter}` : ""}`
       );
       setEnrollments(enrollRes.items || []);
 
       // Carregar unidades
-      const orgRes = await apiFetch("/org/units");
+      const orgRes = await apiFetch("console", "/org/units");
       setOrgUnits(orgRes.items || []);
     } catch (error) {
       toast({
@@ -190,7 +190,7 @@ export function EnrollmentManager({
         payload.org_unit_id = selectedOrgUnit;
       }
 
-      const result = await apiFetch(`/trainings/items/${itemId}/enrollments`, {
+      const result = await apiFetch("console", `/trainings/items/${itemId}/enrollments`, {
         method: "POST",
         body: JSON.stringify(payload),
       });
@@ -216,7 +216,7 @@ export function EnrollmentManager({
   // Marcar como concluído
   const handleComplete = async (enrollmentId: string) => {
     try {
-      await apiFetch(`/trainings/enrollments/${enrollmentId}/complete`, {
+      await apiFetch("console", `/trainings/enrollments/${enrollmentId}/complete`, {
         method: "POST",
       });
 
@@ -239,7 +239,7 @@ export function EnrollmentManager({
   // Cancelar matrícula
   const handleCancel = async (enrollmentId: string) => {
     try {
-      await apiFetch(`/trainings/enrollments/${enrollmentId}`, {
+      await apiFetch("console", `/trainings/enrollments/${enrollmentId}`, {
         method: "DELETE",
       });
 
@@ -261,7 +261,7 @@ export function EnrollmentManager({
   // Download relatório
   const handleDownloadReport = async () => {
     try {
-      const report = await apiFetch(`/trainings/items/${itemId}/report`);
+      const report = await apiFetch("console", `/trainings/items/${itemId}/report`);
       
       // Criar e baixar JSON
       const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });

@@ -248,6 +248,19 @@ class TrainingCertificate(Base, UUIDPrimaryKeyMixin, TimestampMixin, TenantScope
     issuer_name = Column(String(200), nullable=True)  # Nome da empresa emissora
     issuer_cnpj = Column(String(18), nullable=True)
 
+    # ===== NR-1 Certificate Mandatory Fields (1.5.5.3.2) =====
+    # Instrutor
+    instructor_name = Column(String(200), nullable=True)
+    instructor_qualification = Column(String(300), nullable=True)
+    # Local de realização
+    training_location = Column(String(300), nullable=True)
+    # Conteúdo programático (syllabus)
+    syllabus = Column(Text, nullable=True)
+    # Modalidade (presencial, remoto, híbrido)
+    training_modality = Column(String(30), nullable=True, comment="presential | remote | hybrid")
+    # Carga horária formal (minutos, pode diferir de training_duration_minutes)
+    formal_hours_minutes = Column(Integer, nullable=True)
+
     # Relacionamentos
     enrollment = relationship("ActionItemEnrollment", foreign_keys=[enrollment_id])
     employee = relationship("Employee", foreign_keys=[employee_id])

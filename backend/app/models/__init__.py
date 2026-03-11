@@ -10,6 +10,7 @@ from app.models.campaign_invitation import CampaignInvitation, CampaignInvitatio
 from app.models.risk import RiskCriterionVersion, RiskAssessment
 from app.models.action_plan import ActionPlan, ActionItem, ActionEvidence, ActionItemComment, ActionItemHistory
 from app.models.lms import ContentItem, LearningPath, LearningPathItem, ContentAssignment, ContentCompletion, ContentProgress
+from app.models.training import ActionItemEnrollment, TrainingCertificate
 from app.models.template_pack import TemplatePack, TemplatePackItem
 from app.models.esocial import ESocialS2240Profile, ESocialS2210Accident, ESocialS2220Exam
 from app.models.audit_event import AuditEvent

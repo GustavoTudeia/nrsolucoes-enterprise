@@ -18,6 +18,9 @@ export interface EnrollmentOut {
   id: string;
   action_item_id: string;
   employee_id: string;
+  employee_name?: string | null;
+  employee_identifier?: string | null;
+  employee_email?: string | null;
   employee?: {
     id: string;
     identifier: string;
@@ -31,9 +34,12 @@ export interface EnrollmentOut {
   started_at?: string;
   completed_at?: string;
   due_date?: string;
-  progress_percentage: number;
+  progress_percent: number;
   is_overdue: boolean;
   days_until_due?: number;
+  certificate_id?: string | null;
+  notes?: string | null;
+  created_at?: string;
 }
 
 export interface EnrollmentStats {
@@ -42,27 +48,54 @@ export interface EnrollmentStats {
   in_progress: number;
   completed: number;
   expired: number;
-  excused: number;
-  completion_percentage: number;
+  cancelled: number;
+  completion_rate: number;
   overdue_count: number;
-  due_this_week: number;
+  avg_completion_days: number | null;
+  certificates_issued: number;
 }
 
 export interface BulkEnrollResult {
-  total_requested: number;
   enrolled: number;
-  skipped: number;
-  failed: number;
-  enrollment_ids: string[];
-  errors: string[];
+  already_enrolled: number;
+  total_processed: number;
+}
+
+export interface CertificateOut {
+  id: string;
+  certificate_number: string;
+  employee_id: string;
+  employee_name: string;
+  employee_cpf?: string | null;
+  employee_identifier: string;
+  training_title: string;
+  training_description?: string | null;
+  training_duration_minutes?: number | null;
+  action_plan_title?: string | null;
+  risk_dimension?: string | null;
+  training_completed_at: string;
+  issued_at: string;
+  valid_until?: string | null;
+  is_valid: boolean;
+  validation_code?: string | null;
+  validation_url?: string | null;
+  pdf_available: boolean;
+  issuer_name?: string | null;
+  issuer_cnpj?: string | null;
+  // NR-1 mandatory certificate fields
+  instructor_name?: string | null;
+  instructor_qualification?: string | null;
+  training_location?: string | null;
+  syllabus?: string | null;
+  training_modality?: string | null;
+  formal_hours_minutes?: number | null;
 }
 
 export interface CertificateGenerateResult {
   generated: number;
   skipped: number;
-  failed: number;
-  certificate_ids: string[];
-  errors: string[];
+  errors?: string[] | null;
+  message: string;
 }
 
 // API Functions
