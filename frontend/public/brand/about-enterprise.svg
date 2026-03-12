@@ -1,118 +1,268 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600" fill="none">
   <defs>
-    <linearGradient id="bgGrad2" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#fafafa;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#f1f5f9;stop-opacity:1" />
+    <linearGradient id="bg" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f8fafc"/>
+      <stop offset="100%" style="stop-color:#eef2ff"/>
     </linearGradient>
-    <linearGradient id="primary2" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#6366f1;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#4f46e5;stop-opacity:1" />
+    <linearGradient id="violet" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#6366f1"/>
+      <stop offset="100%" style="stop-color:#4f46e5"/>
     </linearGradient>
-    <linearGradient id="green2" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#10b981;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#059669;stop-opacity:1" />
+    <linearGradient id="emerald" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#10b981"/>
+      <stop offset="100%" style="stop-color:#059669"/>
     </linearGradient>
-    <linearGradient id="amber2" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#f59e0b;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#d97706;stop-opacity:1" />
+    <linearGradient id="amber" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f59e0b"/>
+      <stop offset="100%" style="stop-color:#d97706"/>
     </linearGradient>
-    <linearGradient id="blue2" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" style="stop-color:#3b82f6;stop-opacity:1" />
-      <stop offset="100%" style="stop-color:#2563eb;stop-opacity:1" />
+    <linearGradient id="sky" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#3b82f6"/>
+      <stop offset="100%" style="stop-color:#2563eb"/>
     </linearGradient>
-    <filter id="shadow2" x="-20%" y="-20%" width="140%" height="140%">
-      <feDropShadow dx="0" dy="4" stdDeviation="8" flood-color="#000" flood-opacity="0.1"/>
+    <linearGradient id="rose" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#f43f5e"/>
+      <stop offset="100%" style="stop-color:#e11d48"/>
+    </linearGradient>
+    <linearGradient id="purple" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#8b5cf6"/>
+      <stop offset="100%" style="stop-color:#7c3aed"/>
+    </linearGradient>
+    <linearGradient id="ringTrack" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#e0e7ff"/>
+      <stop offset="100%" style="stop-color:#ddd6fe"/>
+    </linearGradient>
+    <filter id="cardSh">
+      <feDropShadow dx="0" dy="3" stdDeviation="6" flood-color="#6366f1" flood-opacity="0.1"/>
     </filter>
-    <filter id="shadowSm" x="-20%" y="-20%" width="140%" height="140%">
+    <filter id="nodeSh">
       <feDropShadow dx="0" dy="2" stdDeviation="4" flood-color="#000" flood-opacity="0.08"/>
     </filter>
+    <filter id="centerSh">
+      <feDropShadow dx="0" dy="4" stdDeviation="10" flood-color="#6366f1" flood-opacity="0.15"/>
+    </filter>
+    <filter id="glowViolet">
+      <feGaussianBlur stdDeviation="12" result="b"/>
+      <feMerge><feMergeNode in="b"/><feMergeNode in="SourceGraphic"/></feMerge>
+    </filter>
   </defs>
-  
+
   <!-- Background -->
-  <rect width="800" height="600" fill="url(#bgGrad2)"/>
-  
-  <!-- Decorative elements -->
-  <circle cx="100" cy="100" r="150" fill="#6366f1" opacity="0.05"/>
-  <circle cx="700" cy="500" r="180" fill="#10b981" opacity="0.05"/>
-  
-  <!-- Central cycle diagram -->
-  <g transform="translate(400, 280)">
-    <!-- Outer ring -->
-    <circle cx="0" cy="0" r="140" fill="none" stroke="#e2e8f0" stroke-width="20"/>
-    
-    <!-- Progress segments -->
-    <circle cx="0" cy="0" r="140" fill="none" stroke="url(#primary2)" stroke-width="20" 
-            stroke-dasharray="110 770" stroke-dashoffset="0" stroke-linecap="round"/>
-    <circle cx="0" cy="0" r="140" fill="none" stroke="url(#green2)" stroke-width="20" 
-            stroke-dasharray="110 770" stroke-dashoffset="-220" stroke-linecap="round"/>
-    <circle cx="0" cy="0" r="140" fill="none" stroke="url(#amber2)" stroke-width="20" 
-            stroke-dasharray="110 770" stroke-dashoffset="-440" stroke-linecap="round"/>
-    <circle cx="0" cy="0" r="140" fill="none" stroke="url(#blue2)" stroke-width="20" 
-            stroke-dasharray="110 770" stroke-dashoffset="-660" stroke-linecap="round"/>
-    
-    <!-- Center -->
-    <circle cx="0" cy="0" r="70" fill="white" filter="url(#shadow2)"/>
-    <text x="0" y="-10" text-anchor="middle" font-family="system-ui, sans-serif" font-size="14" font-weight="600" fill="#1e293b">Ciclo</text>
-    <text x="0" y="10" text-anchor="middle" font-family="system-ui, sans-serif" font-size="14" font-weight="600" fill="#1e293b">Completo</text>
-    <text x="0" y="30" text-anchor="middle" font-family="system-ui, sans-serif" font-size="11" fill="#64748b">NR-1</text>
+  <rect width="800" height="600" fill="url(#bg)"/>
+
+  <!-- Subtle grid -->
+  <pattern id="grid" width="40" height="40" patternUnits="userSpaceOnUse">
+    <circle cx="20" cy="20" r="0.6" fill="#c7d2fe" opacity="0.5"/>
+  </pattern>
+  <rect width="800" height="600" fill="url(#grid)"/>
+
+  <!-- Background blurs -->
+  <ellipse cx="400" cy="290" rx="280" ry="240" fill="#6366f1" opacity="0.04"/>
+  <ellipse cx="200" cy="150" rx="150" ry="120" fill="#3b82f6" opacity="0.03"/>
+  <ellipse cx="620" cy="450" rx="140" ry="110" fill="#10b981" opacity="0.03"/>
+
+  <!-- ============================================ -->
+  <!-- OUTER ORBIT RING                             -->
+  <!-- ============================================ -->
+  <g transform="translate(400, 290)">
+    <!-- Track ring -->
+    <circle cx="0" cy="0" r="195" fill="none" stroke="url(#ringTrack)" stroke-width="3"/>
+
+    <!-- Colored arc segments (the cycle progress) -->
+    <!-- Full circumference ≈ 1225. 6 segments of ~175 each, with 30 gap -->
+    <circle cx="0" cy="0" r="195" fill="none" stroke="#6366f1" stroke-width="5"
+            stroke-dasharray="170 1055" stroke-dashoffset="60" stroke-linecap="round" opacity="0.7"/>
+    <circle cx="0" cy="0" r="195" fill="none" stroke="#10b981" stroke-width="5"
+            stroke-dasharray="170 1055" stroke-dashoffset="-145" stroke-linecap="round" opacity="0.7"/>
+    <circle cx="0" cy="0" r="195" fill="none" stroke="#f59e0b" stroke-width="5"
+            stroke-dasharray="170 1055" stroke-dashoffset="-350" stroke-linecap="round" opacity="0.7"/>
+    <circle cx="0" cy="0" r="195" fill="none" stroke="#3b82f6" stroke-width="5"
+            stroke-dasharray="170 1055" stroke-dashoffset="-555" stroke-linecap="round" opacity="0.7"/>
+    <circle cx="0" cy="0" r="195" fill="none" stroke="#8b5cf6" stroke-width="5"
+            stroke-dasharray="170 1055" stroke-dashoffset="-760" stroke-linecap="round" opacity="0.7"/>
+    <circle cx="0" cy="0" r="195" fill="none" stroke="#f43f5e" stroke-width="5"
+            stroke-dasharray="170 1055" stroke-dashoffset="-965" stroke-linecap="round" opacity="0.7"/>
+
+    <!-- Tiny orbit dots (decorative) -->
+    <circle cx="0" cy="-195" r="3" fill="#6366f1" opacity="0.3"/>
+    <circle cx="169" cy="-97" r="3" fill="#10b981" opacity="0.3"/>
+    <circle cx="169" cy="97" r="3" fill="#f59e0b" opacity="0.3"/>
+    <circle cx="0" cy="195" r="3" fill="#3b82f6" opacity="0.3"/>
+    <circle cx="-169" cy="97" r="3" fill="#8b5cf6" opacity="0.3"/>
+    <circle cx="-169" cy="-97" r="3" fill="#f43f5e" opacity="0.3"/>
+
+    <!-- ============================================ -->
+    <!-- CENTER HUB                                   -->
+    <!-- ============================================ -->
+    <circle cx="0" cy="0" r="72" fill="white" filter="url(#centerSh)"/>
+    <circle cx="0" cy="0" r="72" fill="none" stroke="#e0e7ff" stroke-width="1"/>
+
+    <!-- Inner decorative ring -->
+    <circle cx="0" cy="0" r="58" fill="none" stroke="#eef2ff" stroke-width="1"/>
+
+    <!-- Shield icon in center -->
+    <g transform="translate(-16, -22)">
+      <path d="M16 2L4 7v5c0 7 5 13 12 15 7-2 12-8 12-15V7L16 2z"
+            fill="url(#violet)" opacity="0.9"/>
+      <path d="M11 14l3 3 6-7" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    </g>
+    <text x="0" y="28" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="11" font-weight="700" fill="#1e293b" letter-spacing="0.5">CICLO NR-1</text>
+    <text x="0" y="42" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="9" fill="#64748b">Completo</text>
   </g>
-  
-  <!-- Step 1 - Diagnóstico -->
-  <g transform="translate(400, 80)" filter="url(#shadowSm)">
-    <rect x="-70" y="-30" width="140" height="60" rx="12" fill="white"/>
-    <circle cx="-40" cy="0" r="16" fill="#6366f1" opacity="0.1"/>
-    <path transform="translate(-52, -12)" d="M24 4v16M4 12h16" stroke="#6366f1" stroke-width="2" stroke-linecap="round"/>
-    <text x="0" y="5" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" font-weight="600" fill="#1e293b">Diagnóstico</text>
+
+  <!-- ============================================ -->
+  <!-- STEP NODES (6 around the circle)             -->
+  <!-- ============================================ -->
+
+  <!-- NODE 1: Diagnóstico (top) -->
+  <g transform="translate(400, 58)" filter="url(#nodeSh)">
+    <rect x="-72" y="-30" width="144" height="60" rx="14" fill="white" stroke="#e0e7ff" stroke-width="1"/>
+    <!-- Icon circle -->
+    <circle cx="-42" cy="0" r="18" fill="#eef2ff"/>
+    <g transform="translate(-54, -12)">
+      <!-- Search/diagnose icon -->
+      <circle cx="11" cy="11" r="7" stroke="#6366f1" stroke-width="2" fill="none"/>
+      <line x1="16" y1="16" x2="21" y2="21" stroke="#6366f1" stroke-width="2" stroke-linecap="round"/>
+      <line x1="11" y1="8" x2="11" y2="14" stroke="#6366f1" stroke-width="1.5" stroke-linecap="round"/>
+      <line x1="8" y1="11" x2="14" y2="11" stroke="#6366f1" stroke-width="1.5" stroke-linecap="round"/>
+    </g>
+    <text x="8" y="-4" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="700" fill="#1e293b">Diagnóstico</text>
+    <text x="8" y="12" font-family="system-ui, -apple-system, sans-serif" font-size="9" fill="#64748b">Questionários</text>
+    <!-- Step number -->
+    <circle cx="62" cy="-22" r="10" fill="url(#violet)"/>
+    <text x="62" y="-18" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="9" font-weight="700" fill="white">1</text>
   </g>
-  
-  <!-- Step 2 - Análise -->
-  <g transform="translate(580, 200)" filter="url(#shadowSm)">
-    <rect x="-60" y="-30" width="120" height="60" rx="12" fill="white"/>
-    <circle cx="-30" cy="0" r="16" fill="#10b981" opacity="0.1"/>
-    <path transform="translate(-42, -12)" d="M4 20h4l4-16 4 24 4-8h4" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-    <text x="10" y="5" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" font-weight="600" fill="#1e293b">Análise</text>
+
+  <!-- NODE 2: Análise (top-right) -->
+  <g transform="translate(606, 178)" filter="url(#nodeSh)">
+    <rect x="-62" y="-30" width="124" height="60" rx="14" fill="white" stroke="#d1fae5" stroke-width="1"/>
+    <circle cx="-32" cy="0" r="18" fill="#ecfdf5"/>
+    <g transform="translate(-44, -12)">
+      <!-- Chart icon -->
+      <rect x="2" y="14" width="4" height="10" rx="1" fill="#10b981"/>
+      <rect x="10" y="8" width="4" height="16" rx="1" fill="#10b981"/>
+      <rect x="18" y="4" width="4" height="20" rx="1" fill="#10b981"/>
+    </g>
+    <text x="10" y="-4" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="700" fill="#1e293b">Análise</text>
+    <text x="10" y="12" font-family="system-ui, -apple-system, sans-serif" font-size="9" fill="#64748b">Riscos e dados</text>
+    <circle cx="52" cy="-22" r="10" fill="url(#emerald)"/>
+    <text x="52" y="-18" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="9" font-weight="700" fill="white">2</text>
   </g>
-  
-  <!-- Step 3 - Ação -->
-  <g transform="translate(580, 360)" filter="url(#shadowSm)">
-    <rect x="-60" y="-30" width="120" height="60" rx="12" fill="white"/>
-    <circle cx="-30" cy="0" r="16" fill="#f59e0b" opacity="0.1"/>
-    <path transform="translate(-42, -12)" d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 104 0M9 5a2 2 0 004 0m-6 9l2 2 4-4" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-    <text x="10" y="5" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" font-weight="600" fill="#1e293b">Ação</text>
+
+  <!-- NODE 3: Plano de Ação (bottom-right) -->
+  <g transform="translate(606, 402)" filter="url(#nodeSh)">
+    <rect x="-62" y="-30" width="134" height="60" rx="14" fill="white" stroke="#fef3c7" stroke-width="1"/>
+    <circle cx="-32" cy="0" r="18" fill="#fffbeb"/>
+    <g transform="translate(-44, -12)">
+      <!-- Clipboard check icon -->
+      <rect x="4" y="4" width="16" height="18" rx="2" stroke="#f59e0b" stroke-width="2" fill="none"/>
+      <path d="M8 2h8v4H8z" stroke="#f59e0b" stroke-width="1.5" fill="#fffbeb"/>
+      <path d="M9 14l2 2 4-4" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+    </g>
+    <text x="14" y="-4" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="700" fill="#1e293b">Plano de Ação</text>
+    <text x="14" y="12" font-family="system-ui, -apple-system, sans-serif" font-size="9" fill="#64748b">Medidas e prazos</text>
+    <circle cx="62" cy="-22" r="10" fill="url(#amber)"/>
+    <text x="62" y="-18" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="9" font-weight="700" fill="white">3</text>
   </g>
-  
-  <!-- Step 4 - Evidência -->
-  <g transform="translate(400, 480)" filter="url(#shadowSm)">
-    <rect x="-70" y="-30" width="140" height="60" rx="12" fill="white"/>
-    <circle cx="-40" cy="0" r="16" fill="#3b82f6" opacity="0.1"/>
-    <path transform="translate(-52, -12)" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-    <text x="0" y="5" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" font-weight="600" fill="#1e293b">Evidência</text>
+
+  <!-- NODE 4: Evidências (bottom) -->
+  <g transform="translate(400, 522)" filter="url(#nodeSh)">
+    <rect x="-68" y="-30" width="136" height="60" rx="14" fill="white" stroke="#dbeafe" stroke-width="1"/>
+    <circle cx="-38" cy="0" r="18" fill="#eff6ff"/>
+    <g transform="translate(-50, -12)">
+      <!-- File check icon -->
+      <rect x="4" y="2" width="16" height="20" rx="2" stroke="#3b82f6" stroke-width="2" fill="none"/>
+      <path d="M8 12l2 2 4-4" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+      <line x1="8" y1="7" x2="16" y2="7" stroke="#3b82f6" stroke-width="1.5" stroke-linecap="round"/>
+    </g>
+    <text x="6" y="-4" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="700" fill="#1e293b">Evidências</text>
+    <text x="6" y="12" font-family="system-ui, -apple-system, sans-serif" font-size="9" fill="#64748b">Anexos e trilhas</text>
+    <circle cx="58" cy="-22" r="10" fill="url(#sky)"/>
+    <text x="58" y="-18" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="9" font-weight="700" fill="white">4</text>
   </g>
-  
-  <!-- Step 5 - LMS -->
-  <g transform="translate(220, 360)" filter="url(#shadowSm)">
-    <rect x="-60" y="-30" width="120" height="60" rx="12" fill="white"/>
-    <circle cx="-30" cy="0" r="16" fill="#8b5cf6" opacity="0.1"/>
-    <path transform="translate(-42, -12)" d="M12 14l9-5-9-5-9 5 9 5zM12 14v7M21 9v7" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-    <text x="10" y="5" text-anchor="middle" font-family="system-ui, sans-serif" font-size="13" font-weight="600" fill="#1e293b">LMS</text>
+
+  <!-- NODE 5: LMS / Treinamentos (bottom-left) -->
+  <g transform="translate(184, 402)" filter="url(#nodeSh)">
+    <rect x="-68" y="-30" width="136" height="60" rx="14" fill="white" stroke="#ede9fe" stroke-width="1"/>
+    <circle cx="-38" cy="0" r="18" fill="#f5f3ff"/>
+    <g transform="translate(-50, -12)">
+      <!-- Graduation cap icon -->
+      <path d="M12 4L2 9l10 5 10-5-10-5z" stroke="#8b5cf6" stroke-width="2" stroke-linejoin="round" fill="none"/>
+      <path d="M6 11v5c0 2 3 4 6 4s6-2 6-4v-5" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round" fill="none"/>
+      <line x1="22" y1="9" x2="22" y2="17" stroke="#8b5cf6" stroke-width="2" stroke-linecap="round"/>
+    </g>
+    <text x="6" y="-4" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="700" fill="#1e293b">Treinamentos</text>
+    <text x="6" y="12" font-family="system-ui, -apple-system, sans-serif" font-size="9" fill="#64748b">LMS e certificados</text>
+    <circle cx="58" cy="-22" r="10" fill="url(#purple)"/>
+    <text x="58" y="-18" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="9" font-weight="700" fill="white">5</text>
   </g>
-  
-  <!-- Step 6 - Monitoramento -->
-  <g transform="translate(220, 200)" filter="url(#shadowSm)">
-    <rect x="-70" y="-30" width="140" height="60" rx="12" fill="white"/>
-    <circle cx="-40" cy="0" r="16" fill="#ec4899" opacity="0.1"/>
-    <path transform="translate(-52, -12)" d="M15 12a3 3 0 11-6 0 3 3 0 016 0zM2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" stroke="#ec4899" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
-    <text x="5" y="5" text-anchor="middle" font-family="system-ui, sans-serif" font-size="12" font-weight="600" fill="#1e293b">Monitoramento</text>
+
+  <!-- NODE 6: Monitoramento (top-left) -->
+  <g transform="translate(184, 178)" filter="url(#nodeSh)">
+    <rect x="-72" y="-30" width="144" height="60" rx="14" fill="white" stroke="#ffe4e6" stroke-width="1"/>
+    <circle cx="-42" cy="0" r="18" fill="#fff1f2"/>
+    <g transform="translate(-54, -12)">
+      <!-- Eye/monitor icon -->
+      <ellipse cx="12" cy="12" rx="10" ry="6" stroke="#f43f5e" stroke-width="2" fill="none"/>
+      <circle cx="12" cy="12" r="3" stroke="#f43f5e" stroke-width="2" fill="none"/>
+    </g>
+    <text x="8" y="-4" font-family="system-ui, -apple-system, sans-serif" font-size="12" font-weight="700" fill="#1e293b">Monitoramento</text>
+    <text x="8" y="12" font-family="system-ui, -apple-system, sans-serif" font-size="9" fill="#64748b">Dashboards e KPIs</text>
+    <circle cx="62" cy="-22" r="10" fill="url(#rose)"/>
+    <text x="62" y="-18" text-anchor="middle" font-family="system-ui, -apple-system, sans-serif" font-size="9" font-weight="700" fill="white">6</text>
   </g>
-  
-  <!-- Arrows connecting steps -->
+
+  <!-- ============================================ -->
+  <!-- DIRECTIONAL ARROWS between nodes             -->
+  <!-- ============================================ -->
   <defs>
-    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-      <polygon points="0 0, 10 3.5, 0 7" fill="#94a3b8"/>
+    <marker id="arr" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="#94a3b8" opacity="0.6"/>
     </marker>
   </defs>
-  
-  <!-- Title -->
-  <text x="80" y="50" font-family="system-ui, sans-serif" font-size="22" font-weight="700" fill="#1e293b">Gestão de Riscos Psicossociais</text>
-  <text x="80" y="75" font-family="system-ui, sans-serif" font-size="14" fill="#64748b">Plataforma enterprise para o ciclo completo da NR-1</text>
+
+  <!-- 1→2 -->
+  <path d="M475 72 Q540 90 555 148" stroke="#94a3b8" stroke-width="1.5" fill="none" stroke-dasharray="4,3" marker-end="url(#arr)" opacity="0.5"/>
+  <!-- 2→3 -->
+  <path d="M640 210 Q660 300 640 372" stroke="#94a3b8" stroke-width="1.5" fill="none" stroke-dasharray="4,3" marker-end="url(#arr)" opacity="0.5"/>
+  <!-- 3→4 -->
+  <path d="M570 432 Q500 480 460 492" stroke="#94a3b8" stroke-width="1.5" fill="none" stroke-dasharray="4,3" marker-end="url(#arr)" opacity="0.5"/>
+  <!-- 4→5 -->
+  <path d="M340 492 Q280 480 240 432" stroke="#94a3b8" stroke-width="1.5" fill="none" stroke-dasharray="4,3" marker-end="url(#arr)" opacity="0.5"/>
+  <!-- 5→6 -->
+  <path d="M155 372 Q140 300 150 210" stroke="#94a3b8" stroke-width="1.5" fill="none" stroke-dasharray="4,3" marker-end="url(#arr)" opacity="0.5"/>
+  <!-- 6→1 (closing the cycle) -->
+  <path d="M240 148 Q280 90 330 72" stroke="#94a3b8" stroke-width="1.5" fill="none" stroke-dasharray="4,3" marker-end="url(#arr)" opacity="0.5"/>
+
+  <!-- ============================================ -->
+  <!-- CORNER BADGES                                -->
+  <!-- ============================================ -->
+
+  <!-- Top-left badge -->
+  <g transform="translate(28, 20)" filter="url(#nodeSh)">
+    <rect width="120" height="32" rx="16" fill="white" stroke="#e0e7ff" stroke-width="1"/>
+    <circle cx="18" cy="16" r="5" fill="#10b981"/>
+    <text x="30" y="20" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="600" fill="#1e293b">LGPD Compliant</text>
+  </g>
+
+  <!-- Top-right badge -->
+  <g transform="translate(652, 20)" filter="url(#nodeSh)">
+    <rect width="120" height="32" rx="16" fill="white" stroke="#e0e7ff" stroke-width="1"/>
+    <circle cx="18" cy="16" r="5" fill="#6366f1"/>
+    <text x="30" y="20" font-family="system-ui, -apple-system, sans-serif" font-size="10" font-weight="600" fill="#1e293b">Multi-tenant</text>
+  </g>
+
+  <!-- Bottom-left badge -->
+  <g transform="translate(28, 558)" filter="url(#nodeSh)">
+    <rect width="100" height="28" rx="14" fill="white" stroke="#e0e7ff" stroke-width="1"/>
+    <circle cx="16" cy="14" r="4" fill="#3b82f6"/>
+    <text x="26" y="18" font-family="system-ui, -apple-system, sans-serif" font-size="9" font-weight="600" fill="#1e293b">Auditável</text>
+  </g>
+
+  <!-- Bottom-right badge -->
+  <g transform="translate(672, 558)" filter="url(#nodeSh)">
+    <rect width="100" height="28" rx="14" fill="white" stroke="#e0e7ff" stroke-width="1"/>
+    <circle cx="16" cy="14" r="4" fill="#f59e0b"/>
+    <text x="26" y="18" font-family="system-ui, -apple-system, sans-serif" font-size="9" font-weight="600" fill="#1e293b">Enterprise</text>
+  </g>
 </svg>

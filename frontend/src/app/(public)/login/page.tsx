@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { LockKeyhole, ShieldCheck, Mail, CreditCard, KeyRound, Loader2 } from "lucide-react";
 import { toast } from "sonner";
@@ -61,6 +61,8 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get("next") || "/dashboard";
 
   // Estados para OTP
   const [otpEmail, setOtpEmail] = useState("");
@@ -110,8 +112,8 @@ export default function LoginPage() {
         await consoleLoginCPF(cleanCPF, password);
       }
       toast.success("Login realizado com sucesso");
-      router.push("/dashboard");
-      router.refresh();
+      // Full page navigation to ensure middleware processes the new cookie
+      window.location.href = redirectTo;
     } catch (err: any) {
       toast.error(err?.message || "Credenciais inválidas. Verifique os dados e tente novamente.");
     } finally {
@@ -159,8 +161,7 @@ export default function LoginPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Código inválido");
       toast.success("Login realizado com sucesso");
-      router.push("/dashboard");
-      router.refresh();
+      window.location.href = redirectTo;
     } catch (err: any) {
       toast.error(err.message || "Código inválido ou expirado");
     } finally {
@@ -419,13 +420,25 @@ export default function LoginPage() {
           )}
         </Card>
 
-        <div className="relative hidden overflow-hidden rounded-3xl border bg-card shadow-xl md:block">
+        {/* Light theme illustration */}
+        <div className="relative hidden overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-[#f8fafc] to-[#eef2ff] shadow-xl md:flex md:items-center md:justify-center dark:hidden">
+          <Image
+            src="/brand/auth-enterprise-light.svg"
+            alt="Plataforma segura para dados sensíveis - LGPD, NR-1, Enterprise"
+            width={800}
+            height={600}
+            className="w-full h-auto"
+            priority
+          />
+        </div>
+        {/* Dark theme illustration */}
+        <div className="relative hidden overflow-hidden rounded-3xl border border-slate-700/50 bg-gradient-to-br from-[#0f172a] to-[#1e293b] shadow-xl dark:md:flex dark:md:items-center dark:md:justify-center">
           <Image
             src="/brand/auth-enterprise.svg"
             alt="Plataforma segura para dados sensíveis - LGPD, NR-1, Enterprise"
             width={800}
             height={600}
-            className="h-full w-full object-cover"
+            className="w-full h-auto"
             priority
           />
         </div>
