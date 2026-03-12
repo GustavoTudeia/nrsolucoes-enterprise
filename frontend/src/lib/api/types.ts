@@ -112,6 +112,12 @@ export interface EmployeeOut {
   id: string;
   identifier: string;
   full_name: string;
+  cpf?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  job_title?: string | null;
+  admission_date?: string | null;
+  cnpj_id?: string | null;
   org_unit_id?: string | null;
   is_active?: boolean;
 }
@@ -180,6 +186,8 @@ export interface CampaignOut {
 
 export interface CampaignDetailOut extends CampaignOut {
   tenant_id: string;
+  org_unit_name?: string | null;
+  response_count: number;
   created_at: string;
   opened_at?: string | null;
   closed_at?: string | null;

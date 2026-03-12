@@ -29,8 +29,10 @@ class CampaignDetailOut(BaseModel):
     name: str
     cnpj_id: UUID
     org_unit_id: Optional[UUID] = None
+    org_unit_name: Optional[str] = None
     questionnaire_version_id: UUID
     status: str
+    response_count: int = 0
     created_at: datetime
     opened_at: Optional[datetime] = None
     closed_at: Optional[datetime] = None

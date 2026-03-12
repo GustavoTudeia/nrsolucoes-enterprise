@@ -30,25 +30,37 @@ import { useConsole } from "@/components/console/console-provider";
 import type { CampaignDetailOut, OrgUnitOut } from "@/lib/api/types";
 import {
   AlertTriangle,
+  BarChart3,
   CheckCircle2,
+  ClipboardList,
   Clock,
   Copy,
   Download,
+  FileText,
   Link2,
+  MessageSquare,
+  Search,
   Send,
   Ticket,
   Users,
   XCircle,
 } from "lucide-react";
 
+const STATUS_CONFIG: Record<string, { label: string; color: string; icon: typeof Clock }> = {
+  draft: { label: "Rascunho", color: "bg-slate-100 text-slate-700", icon: Clock },
+  open: { label: "Aberta", color: "bg-emerald-100 text-emerald-700", icon: CheckCircle2 },
+  closed: { label: "Encerrada", color: "bg-blue-100 text-blue-700", icon: XCircle },
+};
+
 function StatusBadge({ status }: { status: string }) {
-  const s = String(status);
-  const variants: Record<string, "default" | "secondary" | "outline" | "destructive"> = {
-    open: "default",
-    closed: "secondary",
-    draft: "outline",
-  };
-  return <Badge variant={variants[s] || "outline"}>{s.toUpperCase()}</Badge>;
+  const cfg = STATUS_CONFIG[status] || { label: status, color: "bg-muted text-muted-foreground", icon: Clock };
+  const Icon = cfg.icon;
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${cfg.color}`}>
+      <Icon className="h-3 w-3" />
+      {cfg.label}
+    </span>
+  );
 }
 
 function InvitationStatusBadge({ status }: { status: string }) {
@@ -680,180 +692,178 @@ export default function CampanhasPage() {
     setInvitationDialogOpen(true);
   }
 
+  const openCount = campaigns.filter((c) => c.status === "open").length;
+  const draftCount = campaigns.filter((c) => c.status === "draft").length;
+  const closedCount = campaigns.filter((c) => c.status === "closed").length;
+  const totalResponses = campaigns.reduce((a, c) => a + (c.response_count || 0), 0);
+
+  const [searchTerm, setSearchTerm] = useState("");
+  const filteredCampaigns = useMemo(() => {
+    if (!searchTerm.trim()) return campaigns;
+    const s = searchTerm.toLowerCase();
+    return campaigns.filter((c) => c.name.toLowerCase().includes(s) || (c.org_unit_name || "").toLowerCase().includes(s));
+  }, [campaigns, searchTerm]);
+
   return (
     <div className="container py-8 space-y-6">
       <PageHeader
         title="Campanhas"
-        description="Crie campanhas de diagnóstico e gerencie convites para colaboradores (1 resposta por colaborador, LGPD-compliant)."
+        description="Diagnostico psicossocial NR-1: crie campanhas, gere convites e acompanhe respostas (LGPD-compliant)."
       />
 
-      <div className="grid gap-6 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Criar campanha</CardTitle>
-            <CardDescription>
-              Campanhas são a base do diagnóstico. Use convites para garantir participação controlada.
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="md:col-span-2 grid gap-2">
-                <Label>Nome</Label>
-                <Input value={name} onChange={(e) => setName(e.target.value)} />
+      {/* Summary cards */}
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-blue-100 p-2.5"><ClipboardList className="h-5 w-5 text-blue-600" /></div>
+              <div>
+                <p className="text-2xl font-bold">{campaigns.length}</p>
+                <p className="text-sm text-muted-foreground">Total</p>
               </div>
-              <div className="grid gap-2">
-                <Label>Unidade/Setor (opcional)</Label>
-                <select
-                  className="h-10 rounded-md border bg-background px-3 text-sm"
-                  value={unitId}
-                  onChange={(e) => setUnitId(e.target.value)}
-                  disabled={!scope.cnpjId}
-                >
-                  <option value="">(CNPJ inteiro)</option>
-                  {unitOptions.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      {u.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid gap-2">
-                <Label>Instrumento (template)</Label>
-                <select
-                  className="h-10 rounded-md border bg-background px-3 text-sm"
-                  value={templateId}
-                  onChange={(e) => setTemplateId(e.target.value)}
-                >
-                  <option value="">Selecione</option>
-                  {templateOptions.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="grid gap-2">
-                <Label>Versão publicada</Label>
-                <select
-                  className="h-10 rounded-md border bg-background px-3 text-sm"
-                  value={versionId}
-                  onChange={(e) => setVersionId(e.target.value)}
-                  disabled={!templateId}
-                >
-                  <option value="">Selecione</option>
-                  {versionOptions.map((v) => (
-                    <option key={v.id} value={v.id}>
-                      {v.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={onCreate}>Criar campanha</Button>
-              <Button variant="secondary" onClick={refreshCampaigns}>
-                Atualizar lista
-              </Button>
             </div>
           </CardContent>
         </Card>
-
         <Card>
-          <CardHeader>
-            <CardTitle>Resumo</CardTitle>
-            <CardDescription>Escopo e seleção atual</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3 text-sm">
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">CNPJ</span>
-              <Badge variant={scope.cnpjId ? "default" : "outline"}>{scope.cnpjId ? "OK" : "Selecione"}</Badge>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-emerald-100 p-2.5"><CheckCircle2 className="h-5 w-5 text-emerald-600" /></div>
+              <div>
+                <p className="text-2xl font-bold">{openCount}</p>
+                <p className="text-sm text-muted-foreground">Aberta{openCount !== 1 ? "s" : ""}</p>
+              </div>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Setor</span>
-              <Badge variant={unitId ? "secondary" : "outline"}>{unitId ? "Definido" : "Opcional"}</Badge>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-slate-100 p-2.5"><Clock className="h-5 w-5 text-slate-600" /></div>
+              <div>
+                <p className="text-2xl font-bold">{draftCount}</p>
+                <p className="text-sm text-muted-foreground">Rascunho{draftCount !== 1 ? "s" : ""}</p>
+              </div>
             </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Questionário</span>
-              <Badge variant={versionId ? "default" : "outline"}>{versionId ? "Publicado" : "Pend."}</Badge>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-violet-100 p-2.5"><MessageSquare className="h-5 w-5 text-violet-600" /></div>
+              <div>
+                <p className="text-2xl font-bold">{totalResponses}</p>
+                <p className="text-sm text-muted-foreground">Resposta{totalResponses !== 1 ? "s" : ""}</p>
+              </div>
             </div>
           </CardContent>
         </Card>
       </div>
 
+      {/* Create form */}
       <Card>
         <CardHeader>
-          <CardTitle>Lista de campanhas</CardTitle>
-          <CardDescription>
-            {loading ? "Carregando..." : `${campaigns.length} campanha(s) no escopo atual.`}
-          </CardDescription>
+          <CardTitle>Criar campanha</CardTitle>
+          <CardDescription>Campanhas sao a base do diagnostico. Use convites para garantir participacao controlada.</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="grid gap-3">
-            {campaigns.map((c) => (
-              <div key={c.id} className="rounded-lg border p-4 space-y-3">
-                <div className="flex items-start justify-between gap-4">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <div className="font-medium">{c.name}</div>
-                      <StatusBadge status={c.status} />
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      {c.org_unit_id ? `Setor: ${c.org_unit_id}` : "Setor: (CNPJ inteiro)"}
-                    </div>
-                    <div className="text-xs text-muted-foreground">
-                      Criada: {new Date(c.created_at).toLocaleString()}
-                      {c.opened_at ? ` • aberta: ${new Date(c.opened_at).toLocaleString()}` : ""}
-                      {c.closed_at ? ` • encerrada: ${new Date(c.closed_at).toLocaleString()}` : ""}
-                    </div>
-                  </div>
-                  <div className="flex gap-2">
-                    {c.status === "draft" && (
-                      <Button variant="default" size="sm" onClick={() => onOpen(c.id)}>
-                        Abrir
-                      </Button>
-                    )}
-                    {c.status === "open" && (
-                      <Button variant="secondary" size="sm" onClick={() => onClose(c.id)}>
-                        Encerrar
-                      </Button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Ações da campanha */}
-                <div className="flex flex-wrap gap-2 pt-2 border-t">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="gap-1"
-                    onClick={() => openInvitationDialog(c)}
-                  >
-                    <Ticket className="h-4 w-4" />
-                    Convites
-                  </Button>
-                  <Button variant="outline" size="sm" className="gap-1" asChild>
-                    <a href={`/pesquisa/${c.id}`} target="_blank" rel="noreferrer">
-                      <Link2 className="h-4 w-4" />
-                      Link Pesquisa
-                    </a>
-                  </Button>
-                  <Button variant="outline" size="sm" asChild>
-                    <a href="/resultados">Ver Resultados</a>
-                  </Button>
-                </div>
-              </div>
-            ))}
-            {campaigns.length === 0 && (
-              <div className="text-sm text-muted-foreground">Nenhuma campanha.</div>
-            )}
+        <CardContent className="space-y-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
+            <div className="lg:col-span-2 space-y-2">
+              <Label>Nome</Label>
+              <Input value={name} onChange={(e) => setName(e.target.value)} />
+            </div>
+            <div className="space-y-2">
+              <Label>Setor (opcional)</Label>
+              <select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={unitId} onChange={(e) => setUnitId(e.target.value)} disabled={!scope.cnpjId}>
+                <option value="">(CNPJ inteiro)</option>
+                {unitOptions.map((u) => <option key={u.id} value={u.id}>{u.label}</option>)}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label>Instrumento</Label>
+              <select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={templateId} onChange={(e) => setTemplateId(e.target.value)}>
+                <option value="">Selecione</option>
+                {templateOptions.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+              </select>
+            </div>
+            <div className="space-y-2">
+              <Label>Versao</Label>
+              <select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={versionId} onChange={(e) => setVersionId(e.target.value)} disabled={!templateId}>
+                <option value="">Selecione</option>
+                {versionOptions.map((v) => <option key={v.id} value={v.id}>{v.label}</option>)}
+              </select>
+            </div>
           </div>
+          <Button onClick={onCreate} disabled={!scope.cnpjId || !versionId || !name}>Criar campanha</Button>
         </CardContent>
       </Card>
 
-      {/* Dialog de convites */}
+      {/* Campaign list */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between flex-wrap gap-3">
+            <div>
+              <CardTitle>Campanhas</CardTitle>
+              <CardDescription>{loading ? "Carregando..." : `${filteredCampaigns.length} campanha(s)`}</CardDescription>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input className="pl-9 w-56" placeholder="Buscar..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+              </div>
+              <Button variant="outline" size="sm" onClick={refreshCampaigns}>Atualizar</Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          {filteredCampaigns.length === 0 ? (
+            <div className="py-8 text-center text-muted-foreground">
+              <ClipboardList className="h-10 w-10 mx-auto mb-3 opacity-40" />
+              <p>{searchTerm ? "Nenhuma campanha encontrada." : "Nenhuma campanha criada."}</p>
+            </div>
+          ) : (
+            filteredCampaigns.map((c) => (
+              <div key={c.id} className="rounded-lg border p-4 space-y-3 hover:bg-muted/30 transition-colors">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-medium">{c.name}</span>
+                      <StatusBadge status={c.status} />
+                      <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
+                        <MessageSquare className="h-3 w-3" />
+                        {c.response_count || 0} resposta{(c.response_count || 0) !== 1 ? "s" : ""}
+                      </span>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {c.org_unit_name ? `Setor: ${c.org_unit_name}` : "Escopo: CNPJ inteiro"}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Criada: {new Date(c.created_at).toLocaleDateString("pt-BR")}
+                      {c.opened_at ? ` · Aberta: ${new Date(c.opened_at).toLocaleDateString("pt-BR")}` : ""}
+                      {c.closed_at ? ` · Encerrada: ${new Date(c.closed_at).toLocaleDateString("pt-BR")}` : ""}
+                    </div>
+                  </div>
+                  <div className="flex gap-2 flex-shrink-0">
+                    {c.status === "draft" && <Button size="sm" onClick={() => onOpen(c.id)}>Abrir</Button>}
+                    {c.status === "open" && <Button variant="secondary" size="sm" onClick={() => onClose(c.id)}>Encerrar</Button>}
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 pt-2 border-t">
+                  <Button variant="outline" size="sm" className="gap-1" onClick={() => openInvitationDialog(c)}>
+                    <Ticket className="h-3.5 w-3.5" /> Convites
+                  </Button>
+                  <Button variant="outline" size="sm" className="gap-1" asChild>
+                    <a href={`/pesquisa/${c.id}`} target="_blank" rel="noreferrer"><Link2 className="h-3.5 w-3.5" /> Pesquisa</a>
+                  </Button>
+                  <Button variant="outline" size="sm" className="gap-1" asChild>
+                    <a href="/resultados"><BarChart3 className="h-3.5 w-3.5" /> Resultados</a>
+                  </Button>
+                </div>
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+
       <InvitationDialog
         open={invitationDialogOpen}
         onClose={() => setInvitationDialogOpen(false)}

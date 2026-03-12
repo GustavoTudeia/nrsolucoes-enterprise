@@ -34,9 +34,32 @@ def _sha256(x: str) -> str:
     return hashlib.sha256(x.encode("utf-8")).hexdigest()
 
 
+def _emp_out(emp: Employee) -> EmployeeOut:
+    eid = emp.id if emp.id is None else UUID(str(emp.id))
+    return EmployeeOut(
+        id=eid,
+        identifier=emp.identifier,
+        full_name=emp.full_name,
+        cpf=emp.cpf,
+        email=emp.email,
+        phone=emp.phone,
+        job_title=emp.job_title,
+        admission_date=emp.admission_date,
+        cnpj_id=emp.cnpj_id,
+        org_unit_id=emp.org_unit_id,
+        is_active=emp.is_active,
+    )
+
+
 class EmployeeUpdate(BaseModel):
     identifier: Optional[str] = None
     full_name: Optional[str] = None
+    cpf: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    job_title: Optional[str] = None
+    admission_date: Optional[datetime] = None
+    cnpj_id: Optional[UUID] = None
     org_unit_id: Optional[UUID] = None
     is_active: Optional[bool] = None
 
@@ -44,6 +67,11 @@ class EmployeeUpdate(BaseModel):
 class EmployeeImportRow(BaseModel):
     identifier: str
     full_name: Optional[str] = None
+    cpf: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    job_title: Optional[str] = None
+    admission_date: Optional[datetime] = None
     org_unit_id: Optional[UUID] = None
 
 
@@ -81,6 +109,12 @@ def create_employee(
         tenant_id=tenant_id,
         identifier=payload.identifier,
         full_name=payload.full_name,
+        cpf=payload.cpf,
+        email=payload.email,
+        phone=payload.phone,
+        job_title=payload.job_title,
+        admission_date=payload.admission_date,
+        cnpj_id=payload.cnpj_id,
         org_unit_id=payload.org_unit_id,
         is_active=True,
     )
@@ -102,13 +136,7 @@ def create_employee(
     )
     db.commit()
     db.refresh(emp)
-    return EmployeeOut(
-        id=emp.id if emp.id is None else UUID(str(emp.id)),
-        identifier=emp.identifier,
-        full_name=emp.full_name,
-        org_unit_id=emp.org_unit_id,
-        is_active=emp.is_active,
-    )
+    return _emp_out(emp)
 
 
 @router.get("", response_model=list[EmployeeOut])
@@ -132,16 +160,7 @@ def list_employees(
     if not scope.is_tenant_admin and scope.unit_ids:
         q = q.filter(Employee.org_unit_id.in_(list(scope.unit_ids)))
     rows = q.order_by(Employee.full_name.asc()).all()
-    return [
-        EmployeeOut(
-            id=e.id if e.id is None else UUID(str(e.id)),
-            identifier=e.identifier,
-            full_name=e.full_name,
-            org_unit_id=e.org_unit_id,
-            is_active=e.is_active,
-        )
-        for e in rows
-    ]
+    return [_emp_out(e) for e in rows]
 
 
 @router.post("/{employee_id}/invite")
@@ -217,13 +236,7 @@ def get_employee(
     )
     if not emp:
         raise NotFound("Colaborador não encontrado")
-    return EmployeeOut(
-        id=emp.id if emp.id is None else UUID(str(emp.id)),
-        identifier=emp.identifier,
-        full_name=emp.full_name,
-        org_unit_id=emp.org_unit_id,
-        is_active=emp.is_active,
-    )
+    return _emp_out(emp)
 
 
 @router.patch("/{employee_id}", response_model=EmployeeOut)
@@ -273,6 +286,18 @@ def update_employee(
         emp.identifier = payload.identifier
     if payload.full_name is not None:
         emp.full_name = payload.full_name
+    if payload.cpf is not None:
+        emp.cpf = payload.cpf.strip() if payload.cpf else None
+    if payload.email is not None:
+        emp.email = payload.email.strip() if payload.email else None
+    if payload.phone is not None:
+        emp.phone = payload.phone.strip() if payload.phone else None
+    if payload.job_title is not None:
+        emp.job_title = payload.job_title.strip() if payload.job_title else None
+    if payload.admission_date is not None:
+        emp.admission_date = payload.admission_date
+    if payload.cnpj_id is not None:
+        emp.cnpj_id = payload.cnpj_id
     if payload.org_unit_id is not None:
         if not scope.is_tenant_admin:
             require_unit_access(scope, payload.org_unit_id)
@@ -304,13 +329,7 @@ def update_employee(
     )
     db.commit()
     db.refresh(emp)
-    return EmployeeOut(
-        id=emp.id if emp.id is None else UUID(str(emp.id)),
-        identifier=emp.identifier,
-        full_name=emp.full_name,
-        org_unit_id=emp.org_unit_id,
-        is_active=emp.is_active,
-    )
+    return _emp_out(emp)
 
 
 @router.delete("/{employee_id}")
@@ -430,6 +449,11 @@ def import_employees(
             tenant_id=tenant_id,
             identifier=identifier,
             full_name=row.full_name.strip() if row.full_name else None,
+            cpf=row.cpf.strip() if row.cpf else None,
+            email=row.email.strip() if row.email else None,
+            phone=row.phone.strip() if row.phone else None,
+            job_title=row.job_title.strip() if row.job_title else None,
+            admission_date=row.admission_date,
             org_unit_id=row.org_unit_id,
             is_active=True,
         )

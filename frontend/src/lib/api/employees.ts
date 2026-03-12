@@ -6,13 +6,23 @@ export async function listEmployees(includeInactive: boolean = false) {
   return apiFetch<EmployeeOut[]>("console", `/employees${qs}`);
 }
 
-export async function createEmployee(payload: { identifier: string; full_name: string; org_unit_id?: string | null }) {
+export async function createEmployee(payload: {
+  identifier: string; full_name: string;
+  cpf?: string | null; email?: string | null; phone?: string | null;
+  job_title?: string | null; admission_date?: string | null;
+  cnpj_id?: string | null; org_unit_id?: string | null;
+}) {
   return apiFetch<EmployeeOut>("console", "/employees", { method: "POST", body: JSON.stringify(payload) });
 }
 
 export async function updateEmployee(
   employeeId: string,
-  payload: { identifier?: string; full_name?: string; org_unit_id?: string | null; is_active?: boolean }
+  payload: {
+    identifier?: string; full_name?: string;
+    cpf?: string | null; email?: string | null; phone?: string | null;
+    job_title?: string | null; admission_date?: string | null;
+    cnpj_id?: string | null; org_unit_id?: string | null; is_active?: boolean;
+  }
 ) {
   return apiFetch<EmployeeOut>("console", `/employees/${encodeURIComponent(employeeId)}`, {
     method: "PATCH",
@@ -37,6 +47,11 @@ export async function inviteEmployee(employeeId: string) {
 export interface EmployeeImportRow {
   identifier: string;
   full_name?: string;
+  cpf?: string;
+  email?: string;
+  phone?: string;
+  job_title?: string;
+  admission_date?: string;
   org_unit_id?: string;
 }
 
