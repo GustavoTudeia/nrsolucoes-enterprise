@@ -245,9 +245,16 @@ class EnrollmentService:
         enrollment: ActionItemEnrollment,
         generate_certificate: bool = True,
         valid_months: Optional[int] = None,
+        # NR-1 metadata
+        instructor_name: Optional[str] = None,
+        instructor_qualification: Optional[str] = None,
+        training_location: Optional[str] = None,
+        syllabus: Optional[str] = None,
+        training_modality: Optional[str] = None,
+        formal_hours_minutes: Optional[int] = None,
     ) -> Optional[TrainingCertificate]:
         """Marca conclusão do treinamento e gera certificado."""
-        
+
         if enrollment.status == "completed":
             # Já concluído, retornar certificado existente
             if enrollment.certificate_id:
@@ -255,9 +262,9 @@ class EnrollmentService:
                     TrainingCertificate.id == enrollment.certificate_id
                 ).first()
             return None
-        
+
         enrollment.complete()
-        
+
         # Atualizar ContentAssignment se existir
         if enrollment.content_assignment_id:
             content_assignment = (
@@ -268,7 +275,7 @@ class EnrollmentService:
             if content_assignment:
                 content_assignment.status = "completed"
                 self.db.add(content_assignment)
-                
+
                 # Criar ContentCompletion se não existir
                 existing_completion = (
                     self.db.query(ContentCompletion)
@@ -287,25 +294,31 @@ class EnrollmentService:
                         completion_method="training_system",
                     )
                     self.db.add(completion)
-        
+
         self.db.add(enrollment)
         self.db.flush()
-        
+
         # Gerar certificado
         certificate = None
         if generate_certificate:
             certificate = self.certificate_service.create_certificate(
                 enrollment=enrollment,
                 valid_months=valid_months,
+                instructor_name=instructor_name,
+                instructor_qualification=instructor_qualification,
+                training_location=training_location,
+                syllabus=syllabus,
+                training_modality=training_modality,
+                formal_hours_minutes=formal_hours_minutes,
             )
             self.db.flush()
-            
+
             # Gerar PDF
             try:
                 self.certificate_service.save_pdf(certificate)
             except Exception:
                 pass  # PDF é opcional
-        
+
         return certificate
     
     def update_progress(

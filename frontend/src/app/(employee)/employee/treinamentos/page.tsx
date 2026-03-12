@@ -25,6 +25,7 @@ import {
   BookOpen,
   Award,
   ChevronRight,
+  ChevronDown,
   Timer,
   CalendarDays,
   TrendingUp,
@@ -32,6 +33,11 @@ import {
   Flame,
   Target,
   Sparkles,
+  FileText,
+  Video,
+  Globe,
+  Layers,
+  CircleDot,
 } from "lucide-react";
 
 // ---------------------------------------------------------------------------
@@ -40,20 +46,47 @@ import {
 
 interface MyTraining {
   enrollment_id: string;
-  action_item_id: string;
-  action_item_title: string;
-  content_id: string | null;
-  content_title: string | null;
-  content_type: string | null;
-  content_description: string | null;
+  training_title: string;
+  training_description: string | null;
+  training_type: string;
   duration_minutes: number | null;
   status: string;
-  progress_percentage: number;
-  enrolled_at: string;
-  started_at: string | null;
+  progress_percent: number;
   due_date: string | null;
   is_overdue: boolean;
   days_until_due: number | null;
+  started_at: string | null;
+  completed_at: string | null;
+  content_id: string | null;
+  can_access: boolean;
+  has_certificate: boolean;
+  certificate_id: string | null;
+  // Learning path fields
+  is_learning_path: boolean;
+  learning_path_id: string | null;
+  learning_path_title: string | null;
+  learning_path_item_count: number;
+  learning_path_completed_count: number;
+}
+
+interface LearningPathItem {
+  order_index: number;
+  content_item_id: string;
+  title: string;
+  description: string | null;
+  content_type: string | null;
+  duration_minutes: number | null;
+  is_completed: boolean;
+  completed_at: string | null;
+}
+
+interface LearningPathDetail {
+  learning_path_id: string;
+  title: string;
+  description: string | null;
+  total_items: number;
+  completed_items: number;
+  items: LearningPathItem[];
 }
 
 // ---------------------------------------------------------------------------
@@ -91,6 +124,7 @@ const CONTENT_TYPE_LABELS: Record<string, string> = {
   link: "Link Externo",
   course: "Curso",
   scorm: "SCORM",
+  learning_path: "Trilha de Aprendizagem",
 };
 
 // ---------------------------------------------------------------------------
@@ -346,7 +380,7 @@ export default function TreinamentosPage() {
               : "border-primary/20 bg-primary/[0.03]"
           }`}
           onClick={() => {
-            if (priorityTraining.content_id) {
+            if (priorityTraining.content_id || priorityTraining.is_learning_path) {
               router.push(
                 `/employee/conteudos/${priorityTraining.enrollment_id}`
               );
@@ -374,8 +408,7 @@ export default function TreinamentosPage() {
                   : "Proximo treinamento"}
               </p>
               <p className="font-semibold truncate">
-                {priorityTraining.content_title ||
-                  priorityTraining.action_item_title}
+                {priorityTraining.training_title}
               </p>
               <div className="flex items-center gap-3 mt-1 text-xs text-muted-foreground">
                 {priorityTraining.duration_minutes && (
@@ -399,7 +432,7 @@ export default function TreinamentosPage() {
                 {priorityTraining.status === "in_progress" && (
                   <span className="flex items-center gap-1">
                     <TrendingUp className="h-3 w-3" />
-                    {priorityTraining.progress_percentage}%
+                    {priorityTraining.progress_percent}%
                   </span>
                 )}
               </div>
@@ -412,7 +445,7 @@ export default function TreinamentosPage() {
                 e.stopPropagation();
                 if (priorityTraining.status === "pending") {
                   handleStart(priorityTraining.enrollment_id);
-                } else if (priorityTraining.content_id) {
+                } else if (priorityTraining.content_id || priorityTraining.is_learning_path) {
                   router.push(
                     `/employee/conteudos/${priorityTraining.enrollment_id}`
                   );
@@ -601,6 +634,18 @@ function EmptyState({ tab }: { tab: string }) {
 }
 
 // ---------------------------------------------------------------------------
+// Content type helpers
+// ---------------------------------------------------------------------------
+
+const CONTENT_TYPE_ICONS: Record<string, typeof Video> = {
+  video: Video,
+  pdf: FileText,
+  link: Globe,
+  learning_path: Layers,
+  course: BookOpen,
+};
+
+// ---------------------------------------------------------------------------
 // Training Card
 // ---------------------------------------------------------------------------
 
@@ -617,9 +662,42 @@ function TrainingCard({
   onComplete: () => void;
   onViewContent: () => void;
 }) {
+  const [expanded, setExpanded] = useState(false);
+  const [pathItems, setPathItems] = useState<LearningPathItem[]>([]);
+  const [pathLoading, setPathLoading] = useState(false);
+
   const isCompleted = training.status === "completed";
   const isInProgress = training.status === "in_progress";
   const isPending = training.status === "pending";
+  const isLP = training.is_learning_path;
+
+  async function loadPathItems() {
+    if (pathItems.length > 0 || pathLoading) return;
+    setPathLoading(true);
+    try {
+      const res = await fetch(
+        `/api/bff/employee/employee/me/trainings/${training.enrollment_id}/learning-path`,
+        { credentials: "include" }
+      );
+      if (res.ok) {
+        const data: LearningPathDetail = await res.json();
+        setPathItems(data.items);
+      }
+    } catch {
+      // silent
+    } finally {
+      setPathLoading(false);
+    }
+  }
+
+  function handleToggleExpand(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (!expanded) loadPathItems();
+    setExpanded(!expanded);
+  }
+
+  const hasContent = training.content_id || training.is_learning_path;
+  const TypeIcon = CONTENT_TYPE_ICONS[training.training_type] || BookOpen;
 
   return (
     <Card
@@ -658,7 +736,11 @@ function TrainingCard({
                     : "bg-yellow-100 dark:bg-yellow-900/30"
                 }`}
               >
-                {isCompleted ? (
+                {isLP ? (
+                  <Layers className={`h-5 w-5 ${
+                    isCompleted ? "text-green-600" : training.is_overdue ? "text-red-600" : isInProgress ? "text-blue-600" : "text-yellow-600"
+                  }`} />
+                ) : isCompleted ? (
                   <CheckCircle2 className="h-5 w-5 text-green-600" />
                 ) : training.is_overdue ? (
                   <AlertTriangle className="h-5 w-5 text-red-600" />
@@ -673,12 +755,20 @@ function TrainingCard({
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0">
-                    <h3 className="font-semibold text-sm md:text-base leading-tight truncate">
-                      {training.content_title || training.action_item_title}
-                    </h3>
-                    {training.content_description && (
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-semibold text-sm md:text-base leading-tight truncate">
+                        {training.training_title}
+                      </h3>
+                      {isLP && (
+                        <Badge variant="secondary" className="text-[10px] h-5 gap-1 flex-shrink-0">
+                          <Layers className="h-3 w-3" />
+                          Trilha
+                        </Badge>
+                      )}
+                    </div>
+                    {training.training_description && (
                       <p className="text-xs text-muted-foreground mt-1 line-clamp-2 leading-relaxed">
-                        {training.content_description}
+                        {training.training_description}
                       </p>
                     )}
                   </div>
@@ -689,14 +779,19 @@ function TrainingCard({
 
                 {/* meta row */}
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2.5 text-xs text-muted-foreground">
-                  {training.content_type && (
+                  {training.training_type && (
                     <span className="flex items-center gap-1">
-                      <BookOpen className="h-3 w-3" />
-                      {CONTENT_TYPE_LABELS[training.content_type] ||
-                        training.content_type}
+                      <TypeIcon className="h-3 w-3" />
+                      {CONTENT_TYPE_LABELS[training.training_type] || training.training_type}
                     </span>
                   )}
-                  {training.duration_minutes && (
+                  {isLP && (
+                    <span className="flex items-center gap-1">
+                      <CircleDot className="h-3 w-3" />
+                      {training.learning_path_completed_count}/{training.learning_path_item_count} itens
+                    </span>
+                  )}
+                  {training.duration_minutes != null && training.duration_minutes > 0 && (
                     <span className="flex items-center gap-1">
                       <Timer className="h-3 w-3" />
                       {formatDuration(training.duration_minutes)}
@@ -723,23 +818,38 @@ function TrainingCard({
                         )}
                     </span>
                   )}
-                  {isCompleted && training.started_at && (
+                  {isCompleted && training.completed_at && (
                     <span className="flex items-center gap-1 text-green-600">
                       <CheckCircle2 className="h-3 w-3" />
-                      Concluido em {formatDate(training.started_at)}
+                      Concluido em {formatDate(training.completed_at)}
                     </span>
                   )}
                 </div>
 
-                {/* progress bar */}
-                {isInProgress && (
+                {/* Learning path progress bar */}
+                {isLP && !isCompleted && (
                   <div className="mt-3 flex items-center gap-3">
                     <Progress
-                      value={training.progress_percentage}
+                      value={training.learning_path_item_count > 0
+                        ? (training.learning_path_completed_count / training.learning_path_item_count) * 100
+                        : 0}
+                      className="h-2 flex-1"
+                    />
+                    <span className="text-xs font-medium text-muted-foreground whitespace-nowrap">
+                      {training.learning_path_completed_count} de {training.learning_path_item_count}
+                    </span>
+                  </div>
+                )}
+
+                {/* Regular progress bar */}
+                {!isLP && isInProgress && (
+                  <div className="mt-3 flex items-center gap-3">
+                    <Progress
+                      value={training.progress_percent}
                       className="h-2 flex-1"
                     />
                     <span className="text-xs font-medium min-w-[3ch] text-right">
-                      {training.progress_percentage}%
+                      {training.progress_percent}%
                     </span>
                   </div>
                 )}
@@ -747,7 +857,7 @@ function TrainingCard({
                 {/* actions */}
                 {!isCompleted && (
                   <div className="flex items-center gap-2 mt-3">
-                    {isPending && (
+                    {isPending && !isLP && (
                       <Button
                         size="sm"
                         onClick={onStart}
@@ -762,9 +872,31 @@ function TrainingCard({
                         Iniciar Treinamento
                       </Button>
                     )}
-                    {isInProgress && (
+                    {isLP && (
                       <>
-                        {training.content_id && (
+                        <Button
+                          size="sm"
+                          onClick={onViewContent}
+                          className="h-8"
+                        >
+                          <Layers className="h-3.5 w-3.5 mr-1" />
+                          {isPending ? "Iniciar Trilha" : "Continuar Trilha"}
+                          <ChevronRight className="h-3.5 w-3.5 ml-0.5" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={handleToggleExpand}
+                          className="h-8 text-muted-foreground"
+                        >
+                          <ChevronDown className={`h-3.5 w-3.5 mr-1 transition-transform ${expanded ? "rotate-180" : ""}`} />
+                          {expanded ? "Ocultar" : "Ver itens"}
+                        </Button>
+                      </>
+                    )}
+                    {!isLP && isInProgress && (
+                      <>
+                        {hasContent && (
                           <Button
                             size="sm"
                             onClick={onViewContent}
@@ -791,7 +923,7 @@ function TrainingCard({
                         </Button>
                       </>
                     )}
-                    {isPending && training.content_id && (
+                    {!isLP && isPending && training.content_id && (
                       <Button
                         size="sm"
                         variant="ghost"
@@ -804,8 +936,80 @@ function TrainingCard({
                     )}
                   </div>
                 )}
+
+                {/* Completed LP — show items */}
+                {isLP && isCompleted && (
+                  <div className="mt-3">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={handleToggleExpand}
+                      className="h-7 text-xs text-muted-foreground px-2"
+                    >
+                      <ChevronDown className={`h-3 w-3 mr-1 transition-transform ${expanded ? "rotate-180" : ""}`} />
+                      {expanded ? "Ocultar itens" : `Ver ${training.learning_path_item_count} itens`}
+                    </Button>
+                  </div>
+                )}
               </div>
             </div>
+
+            {/* ===== Expanded Learning Path Items ===== */}
+            {isLP && expanded && (
+              <div className="mt-4 ml-14 border-l-2 border-primary/20 pl-4 space-y-0">
+                {pathLoading ? (
+                  <div className="flex items-center gap-2 py-3 text-xs text-muted-foreground">
+                    <RefreshCw className="h-3 w-3 animate-spin" />
+                    Carregando itens...
+                  </div>
+                ) : pathItems.length === 0 ? (
+                  <p className="py-3 text-xs text-muted-foreground">Nenhum item na trilha.</p>
+                ) : (
+                  pathItems.map((item, idx) => {
+                    const ItemIcon = CONTENT_TYPE_ICONS[item.content_type || "link"] || BookOpen;
+                    return (
+                      <div
+                        key={item.content_item_id}
+                        className="flex items-center gap-3 py-2.5 group/item"
+                      >
+                        {/* Step indicator */}
+                        <div className={`flex-shrink-0 h-7 w-7 rounded-full flex items-center justify-center text-xs font-bold ${
+                          item.is_completed
+                            ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400"
+                            : "bg-muted text-muted-foreground"
+                        }`}>
+                          {item.is_completed ? (
+                            <CheckCircle2 className="h-4 w-4" />
+                          ) : (
+                            idx + 1
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className={`text-sm font-medium truncate ${item.is_completed ? "text-muted-foreground line-through" : ""}`}>
+                            {item.title}
+                          </p>
+                          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+                            <ItemIcon className="h-3 w-3" />
+                            <span>{CONTENT_TYPE_LABELS[item.content_type || ""] || item.content_type}</span>
+                            {item.duration_minutes != null && item.duration_minutes > 0 && (
+                              <>
+                                <span>·</span>
+                                <span>{formatDuration(item.duration_minutes)}</span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        {item.is_completed && (
+                          <Badge variant="outline" className="text-[10px] h-5 bg-green-50 text-green-700 border-green-200 dark:bg-green-900/20 dark:text-green-400 dark:border-green-800">
+                            Concluido
+                          </Badge>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            )}
           </div>
         </div>
       </CardContent>

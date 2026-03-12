@@ -29,11 +29,13 @@ from app.db.session import get_db
 from app.models.training import ActionItemEnrollment, TrainingCertificate
 from app.models.action_plan import ActionItem
 from app.models.employee import Employee
-from app.models.lms import ContentItem, ContentAssignment
+from app.models.lms import ContentItem, ContentAssignment, LearningPath, LearningPathItem, ContentCompletion
 from app.schemas.training import (
     PortalTrainingOut,
     PortalCertificateOut,
     EnrollmentProgress,
+    LearningPathDetailOut,
+    LearningPathItemOut,
 )
 from app.services.enrollment_service import EnrollmentService
 from app.services.certificate_service import CertificateService
@@ -67,6 +69,36 @@ def get_employee_from_token(token: str, db: Session) -> Employee:
         raise NotFound("Colaborador não encontrado")
 
     return employee
+
+
+# ==================== Helpers ====================
+
+
+def _sync_learning_path_completion(
+    enrollment: ActionItemEnrollment,
+    lp_item_count: int,
+    lp_completed_count: int,
+    db: Session,
+):
+    """Auto-completa a matrícula se todos os itens da trilha estão concluídos.
+
+    Retorna True se o enrollment foi completado nesta chamada.
+    """
+    if lp_item_count == 0 or lp_completed_count < lp_item_count:
+        return False
+    if enrollment.status == "completed":
+        return False
+
+    # Atualizar progresso para 100%
+    enrollment.progress_percent = 100
+
+    service = EnrollmentService(db)
+    certificate = service.complete_training(enrollment, generate_certificate=True)
+    if certificate:
+        service.create_evidence_from_certificate(enrollment, certificate)
+
+    db.commit()
+    return True
 
 
 # ==================== Trainings Endpoints ====================
@@ -106,23 +138,79 @@ def list_my_trainings(
     result = []
     for enrollment in enrollments:
         action_item = enrollment.action_item
+        is_lp = getattr(action_item, "education_ref_type", None) == "learning_path"
 
-        # Buscar conteúdo se existir
         content = None
+        learning_path = None
+        lp_item_count = 0
+        lp_completed_count = 0
+
         if action_item.education_ref_id:
-            content = (
-                db.query(ContentItem)
-                .filter(ContentItem.id == action_item.education_ref_id)
-                .first()
+            if is_lp:
+                learning_path = (
+                    db.query(LearningPath)
+                    .filter(LearningPath.id == action_item.education_ref_id)
+                    .first()
+                )
+                if learning_path:
+                    path_items = (
+                        db.query(LearningPathItem)
+                        .filter(LearningPathItem.learning_path_id == learning_path.id)
+                        .all()
+                    )
+                    lp_item_count = len(path_items)
+                    # Count completed items
+                    for pi in path_items:
+                        assignment = (
+                            db.query(ContentAssignment)
+                            .filter(
+                                ContentAssignment.content_item_id == pi.content_item_id,
+                                ContentAssignment.learning_path_id == learning_path.id,
+                                ContentAssignment.employee_id == enrollment.employee_id,
+                                ContentAssignment.tenant_id == enrollment.tenant_id,
+                            )
+                            .first()
+                        )
+                        if assignment:
+                            completion = (
+                                db.query(ContentCompletion)
+                                .filter(
+                                    ContentCompletion.assignment_id == assignment.id,
+                                    ContentCompletion.employee_id == enrollment.employee_id,
+                                )
+                                .first()
+                            )
+                            if completion:
+                                lp_completed_count += 1
+            else:
+                content = (
+                    db.query(ContentItem)
+                    .filter(ContentItem.id == action_item.education_ref_id)
+                    .first()
+                )
+
+        # Calculate total duration for learning paths
+        total_duration = None
+        if is_lp and learning_path:
+            durations = (
+                db.query(ContentItem.duration_minutes)
+                .join(LearningPathItem, LearningPathItem.content_item_id == ContentItem.id)
+                .filter(LearningPathItem.learning_path_id == learning_path.id)
+                .all()
             )
+            total_duration = sum(d[0] for d in durations if d[0])
+
+        # Auto-sync: se todos os itens estão concluídos mas a matrícula não
+        if is_lp and lp_item_count > 0 and lp_completed_count >= lp_item_count:
+            _sync_learning_path_completion(enrollment, lp_item_count, lp_completed_count, db)
 
         result.append(
             PortalTrainingOut(
                 enrollment_id=enrollment.id,
                 training_title=action_item.title,
                 training_description=action_item.description,
-                training_type=content.content_type if content else "course",
-                duration_minutes=content.duration_minutes if content else None,
+                training_type="learning_path" if is_lp else (content.content_type if content else "course"),
+                duration_minutes=total_duration if is_lp else (content.duration_minutes if content else None),
                 status=enrollment.status,
                 progress_percent=enrollment.progress_percent,
                 due_date=enrollment.due_date,
@@ -134,6 +222,11 @@ def list_my_trainings(
                 can_access=True,
                 has_certificate=enrollment.certificate_id is not None,
                 certificate_id=enrollment.certificate_id,
+                is_learning_path=is_lp,
+                learning_path_id=learning_path.id if learning_path else None,
+                learning_path_title=learning_path.title if learning_path else None,
+                learning_path_item_count=lp_item_count,
+                learning_path_completed_count=lp_completed_count,
             )
         )
 
@@ -162,21 +255,72 @@ def get_my_training(
         raise NotFound("Treinamento não encontrado")
 
     action_item = enrollment.action_item
+    is_lp = getattr(action_item, "education_ref_type", None) == "learning_path"
 
     content = None
+    learning_path = None
+    lp_item_count = 0
+    lp_completed_count = 0
+
     if action_item.education_ref_id:
-        content = (
-            db.query(ContentItem)
-            .filter(ContentItem.id == action_item.education_ref_id)
-            .first()
+        if is_lp:
+            learning_path = (
+                db.query(LearningPath)
+                .filter(LearningPath.id == action_item.education_ref_id)
+                .first()
+            )
+            if learning_path:
+                path_items = (
+                    db.query(LearningPathItem)
+                    .filter(LearningPathItem.learning_path_id == learning_path.id)
+                    .all()
+                )
+                lp_item_count = len(path_items)
+                for pi in path_items:
+                    assignment = (
+                        db.query(ContentAssignment)
+                        .filter(
+                            ContentAssignment.content_item_id == pi.content_item_id,
+                            ContentAssignment.learning_path_id == learning_path.id,
+                            ContentAssignment.employee_id == enrollment.employee_id,
+                            ContentAssignment.tenant_id == enrollment.tenant_id,
+                        )
+                        .first()
+                    )
+                    if assignment:
+                        completion = (
+                            db.query(ContentCompletion)
+                            .filter(
+                                ContentCompletion.assignment_id == assignment.id,
+                                ContentCompletion.employee_id == enrollment.employee_id,
+                            )
+                            .first()
+                        )
+                        if completion:
+                            lp_completed_count += 1
+        else:
+            content = (
+                db.query(ContentItem)
+                .filter(ContentItem.id == action_item.education_ref_id)
+                .first()
+            )
+
+    total_duration = None
+    if is_lp and learning_path:
+        durations = (
+            db.query(ContentItem.duration_minutes)
+            .join(LearningPathItem, LearningPathItem.content_item_id == ContentItem.id)
+            .filter(LearningPathItem.learning_path_id == learning_path.id)
+            .all()
         )
+        total_duration = sum(d[0] for d in durations if d[0])
 
     return PortalTrainingOut(
         enrollment_id=enrollment.id,
         training_title=action_item.title,
         training_description=action_item.description,
-        training_type=content.content_type if content else "course",
-        duration_minutes=content.duration_minutes if content else None,
+        training_type="learning_path" if is_lp else (content.content_type if content else "course"),
+        duration_minutes=total_duration if is_lp else (content.duration_minutes if content else None),
         status=enrollment.status,
         progress_percent=enrollment.progress_percent,
         due_date=enrollment.due_date,
@@ -188,6 +332,11 @@ def get_my_training(
         can_access=True,
         has_certificate=enrollment.certificate_id is not None,
         certificate_id=enrollment.certificate_id,
+        is_learning_path=is_lp,
+        learning_path_id=learning_path.id if learning_path else None,
+        learning_path_title=learning_path.title if learning_path else None,
+        learning_path_item_count=lp_item_count,
+        learning_path_completed_count=lp_completed_count,
     )
 
 
@@ -396,6 +545,339 @@ def get_training_content_access(
     raise BadRequest("Conteúdo não disponível")
 
 
+# ==================== Learning Path Endpoints ====================
+
+
+def _get_enrollment_or_404(enrollment_id: UUID, employee: Employee, db: Session):
+    """Helper to fetch and validate enrollment ownership."""
+    enrollment = (
+        db.query(ActionItemEnrollment)
+        .filter(
+            ActionItemEnrollment.id == enrollment_id,
+            ActionItemEnrollment.tenant_id == employee.tenant_id,
+            ActionItemEnrollment.employee_id == employee.id,
+        )
+        .first()
+    )
+    if not enrollment:
+        raise NotFound("Treinamento não encontrado")
+    return enrollment
+
+
+@router.get(
+    "/me/trainings/{enrollment_id}/learning-path",
+    response_model=LearningPathDetailOut,
+)
+def get_learning_path_items(
+    enrollment_id: UUID,
+    db: Session = Depends(get_db),
+    employee: Employee = Depends(get_current_employee),
+):
+    """Retorna os itens da trilha de aprendizagem vinculada a um treinamento.
+
+    Cria ContentAssignment por item automaticamente na primeira consulta.
+    """
+    enrollment = _get_enrollment_or_404(enrollment_id, employee, db)
+    action_item = enrollment.action_item
+
+    if getattr(action_item, "education_ref_type", None) != "learning_path":
+        raise BadRequest("Este treinamento não é uma trilha de aprendizagem")
+
+    if not action_item.education_ref_id:
+        raise BadRequest("Trilha não vinculada")
+
+    learning_path = (
+        db.query(LearningPath)
+        .filter(LearningPath.id == action_item.education_ref_id)
+        .first()
+    )
+    if not learning_path:
+        raise NotFound("Trilha de aprendizagem não encontrada")
+
+    path_items = (
+        db.query(LearningPathItem)
+        .filter(LearningPathItem.learning_path_id == learning_path.id)
+        .order_by(LearningPathItem.order_index)
+        .all()
+    )
+
+    items_out = []
+    needs_flush = False
+
+    for pi in path_items:
+        content = (
+            db.query(ContentItem)
+            .filter(ContentItem.id == pi.content_item_id)
+            .first()
+        )
+
+        # Ensure per-item ContentAssignment exists (lazy creation)
+        assignment = (
+            db.query(ContentAssignment)
+            .filter(
+                ContentAssignment.content_item_id == pi.content_item_id,
+                ContentAssignment.learning_path_id == learning_path.id,
+                ContentAssignment.employee_id == employee.id,
+                ContentAssignment.tenant_id == employee.tenant_id,
+            )
+            .first()
+        )
+        if not assignment:
+            assignment = ContentAssignment(
+                tenant_id=employee.tenant_id,
+                content_item_id=pi.content_item_id,
+                learning_path_id=learning_path.id,
+                employee_id=employee.id,
+                due_at=enrollment.due_date,
+                status="assigned",
+            )
+            db.add(assignment)
+            needs_flush = True
+
+        if needs_flush:
+            db.flush()
+            needs_flush = False
+
+        # Check completion
+        completion = (
+            db.query(ContentCompletion)
+            .filter(
+                ContentCompletion.assignment_id == assignment.id,
+                ContentCompletion.employee_id == employee.id,
+            )
+            .first()
+        )
+
+        items_out.append(
+            LearningPathItemOut(
+                order_index=pi.order_index,
+                content_item_id=pi.content_item_id,
+                title=content.title if content else "Conteúdo",
+                description=content.description if content else None,
+                content_type=content.content_type if content else None,
+                duration_minutes=content.duration_minutes if content else None,
+                is_completed=completion is not None,
+                completed_at=completion.completed_at if completion else None,
+            )
+        )
+
+    db.commit()
+
+    completed_count = sum(1 for i in items_out if i.is_completed)
+    total_count = len(items_out)
+
+    # Auto-sync: completar matrícula se todos os itens estão concluídos
+    if total_count > 0 and completed_count >= total_count:
+        _sync_learning_path_completion(enrollment, total_count, completed_count, db)
+
+    return LearningPathDetailOut(
+        learning_path_id=learning_path.id,
+        title=learning_path.title,
+        description=learning_path.description,
+        total_items=total_count,
+        completed_items=completed_count,
+        items=items_out,
+    )
+
+
+@router.get("/me/trainings/{enrollment_id}/learning-path/{item_index}/content")
+def get_learning_path_item_content(
+    enrollment_id: UUID,
+    item_index: int,
+    db: Session = Depends(get_db),
+    employee: Employee = Depends(get_current_employee),
+):
+    """Retorna URL de acesso ao conteúdo de um item específico da trilha."""
+    enrollment = _get_enrollment_or_404(enrollment_id, employee, db)
+    action_item = enrollment.action_item
+
+    if getattr(action_item, "education_ref_type", None) != "learning_path":
+        raise BadRequest("Este treinamento não é uma trilha de aprendizagem")
+
+    path_item = (
+        db.query(LearningPathItem)
+        .filter(
+            LearningPathItem.learning_path_id == action_item.education_ref_id,
+            LearningPathItem.order_index == item_index,
+        )
+        .first()
+    )
+    if not path_item:
+        raise NotFound("Item da trilha não encontrado")
+
+    content = (
+        db.query(ContentItem)
+        .filter(ContentItem.id == path_item.content_item_id)
+        .first()
+    )
+    if not content:
+        raise NotFound("Conteúdo não encontrado")
+
+    # Auto-start enrollment on first content access
+    if enrollment.status == "pending":
+        service = EnrollmentService(db)
+        service.start_training(enrollment)
+        db.commit()
+
+    if content.storage_key:
+        try:
+            presigned = create_access_url(content.storage_key)
+            return {
+                "content_id": str(content.id),
+                "content_type": content.content_type,
+                "title": content.title,
+                "access_url": presigned.url,
+                "expires_in_seconds": presigned.expires_in,
+                "order_index": item_index,
+            }
+        except Exception:
+            pass
+
+    if content.url:
+        return {
+            "content_id": str(content.id),
+            "content_type": content.content_type,
+            "title": content.title,
+            "access_url": content.url,
+            "expires_in_seconds": 0,
+            "order_index": item_index,
+        }
+
+    raise BadRequest("Conteúdo não disponível")
+
+
+@router.post("/me/trainings/{enrollment_id}/learning-path/{item_index}/complete")
+def complete_learning_path_item(
+    enrollment_id: UUID,
+    item_index: int,
+    db: Session = Depends(get_db),
+    employee: Employee = Depends(get_current_employee),
+):
+    """Marca um item específico da trilha como concluído.
+
+    Se todos os itens forem concluídos, marca o treinamento inteiro.
+    """
+    enrollment = _get_enrollment_or_404(enrollment_id, employee, db)
+    action_item = enrollment.action_item
+
+    if getattr(action_item, "education_ref_type", None) != "learning_path":
+        raise BadRequest("Este treinamento não é uma trilha de aprendizagem")
+
+    learning_path_id = action_item.education_ref_id
+    path_item = (
+        db.query(LearningPathItem)
+        .filter(
+            LearningPathItem.learning_path_id == learning_path_id,
+            LearningPathItem.order_index == item_index,
+        )
+        .first()
+    )
+    if not path_item:
+        raise NotFound("Item da trilha não encontrado")
+
+    # Find or create per-item assignment
+    assignment = (
+        db.query(ContentAssignment)
+        .filter(
+            ContentAssignment.content_item_id == path_item.content_item_id,
+            ContentAssignment.learning_path_id == learning_path_id,
+            ContentAssignment.employee_id == employee.id,
+            ContentAssignment.tenant_id == employee.tenant_id,
+        )
+        .first()
+    )
+    if not assignment:
+        assignment = ContentAssignment(
+            tenant_id=employee.tenant_id,
+            content_item_id=path_item.content_item_id,
+            learning_path_id=learning_path_id,
+            employee_id=employee.id,
+            due_at=enrollment.due_date,
+            status="completed",
+        )
+        db.add(assignment)
+        db.flush()
+    else:
+        assignment.status = "completed"
+
+    # Check if already completed
+    existing_completion = (
+        db.query(ContentCompletion)
+        .filter(
+            ContentCompletion.assignment_id == assignment.id,
+            ContentCompletion.employee_id == employee.id,
+        )
+        .first()
+    )
+    if not existing_completion:
+        completion = ContentCompletion(
+            tenant_id=employee.tenant_id,
+            assignment_id=assignment.id,
+            employee_id=employee.id,
+            completed_at=datetime.utcnow(),
+            completion_method="manual",
+        )
+        db.add(completion)
+
+    # Check if ALL items in the path are now complete
+    all_path_items = (
+        db.query(LearningPathItem)
+        .filter(LearningPathItem.learning_path_id == learning_path_id)
+        .all()
+    )
+    total_items = len(all_path_items)
+    completed_items = 0
+
+    for pi in all_path_items:
+        a = (
+            db.query(ContentAssignment)
+            .filter(
+                ContentAssignment.content_item_id == pi.content_item_id,
+                ContentAssignment.learning_path_id == learning_path_id,
+                ContentAssignment.employee_id == employee.id,
+                ContentAssignment.tenant_id == employee.tenant_id,
+            )
+            .first()
+        )
+        if a:
+            c = (
+                db.query(ContentCompletion)
+                .filter(
+                    ContentCompletion.assignment_id == a.id,
+                    ContentCompletion.employee_id == employee.id,
+                )
+                .first()
+            )
+            if c:
+                completed_items += 1
+
+    # Update enrollment progress
+    if total_items > 0:
+        enrollment.progress_percent = int((completed_items / total_items) * 100)
+
+    all_done = completed_items >= total_items
+
+    # Auto-complete enrollment if all items done
+    certificate = None
+    if all_done and enrollment.status != "completed":
+        service = EnrollmentService(db)
+        certificate = service.complete_training(enrollment, generate_certificate=True)
+        if certificate:
+            service.create_evidence_from_certificate(enrollment, certificate)
+
+    db.commit()
+
+    return {
+        "message": "Item concluído" if not all_done else "Trilha concluída!",
+        "item_index": item_index,
+        "completed_items": completed_items,
+        "total_items": total_items,
+        "all_completed": all_done,
+        "certificate_id": str(certificate.id) if certificate else None,
+        "certificate_number": certificate.certificate_number if certificate else None,
+    }
+
+
 # ==================== Certificates Endpoints ====================
 
 
@@ -493,6 +975,7 @@ def get_my_certificate(
 @router.get("/me/certificates/{certificate_id}/download")
 def download_my_certificate(
     certificate_id: UUID,
+    regenerate: bool = Query(False, description="Regenerar PDF com novo layout"),
     db: Session = Depends(get_db),
     employee: Employee = Depends(get_current_employee),
 ):
@@ -511,8 +994,8 @@ def download_my_certificate(
     if not cert:
         raise NotFound("Certificado não encontrado")
 
-    # Se já tem PDF no storage
-    if cert.pdf_storage_key:
+    # Se já tem PDF no storage e não pediu regeneração
+    if cert.pdf_storage_key and not regenerate:
         try:
             presigned = create_access_url(cert.pdf_storage_key)
             return {
@@ -522,10 +1005,25 @@ def download_my_certificate(
         except Exception:
             pass
 
-    # Gerar PDF on-the-fly
+    # Regenerar e salvar no storage, depois retornar URL
     service = CertificateService(db)
-    pdf_content, _ = service.generate_pdf(cert)
 
+    if regenerate:
+        try:
+            service.save_pdf(cert)
+            db.commit()
+            db.refresh(cert)
+            if cert.pdf_storage_key:
+                presigned = create_access_url(cert.pdf_storage_key)
+                return {
+                    "download_url": presigned.url,
+                    "expires_in_seconds": presigned.expires_in,
+                }
+        except Exception:
+            pass
+
+    # Fallback: gerar on-the-fly como stream
+    pdf_content, _ = service.generate_pdf(cert)
     return StreamingResponse(
         BytesIO(pdf_content),
         media_type="application/pdf",

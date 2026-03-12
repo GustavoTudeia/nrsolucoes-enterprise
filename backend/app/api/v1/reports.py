@@ -219,7 +219,8 @@ def tenant_overview(
 
 @router.get("/readiness")
 def get_readiness(
-    user=Depends(require_active_subscription),
+    db: Session = Depends(get_db),
+    _sub_ok: None = Depends(require_active_subscription),
     _roles=Depends(
         require_any_role(
             [
@@ -231,9 +232,8 @@ def get_readiness(
             ]
         )
     ),
-    db: Session = Depends(get_db),
+    tenant_id: UUID = Depends(tenant_id_from_user),
 ):
-    tenant_id = tenant_id_from_user(user)
 
     has_cnpj = db.query(CNPJ).filter(CNPJ.tenant_id == tenant_id, CNPJ.is_active == True).count() > 0
     has_org_units = db.query(OrgUnit).filter(OrgUnit.tenant_id == tenant_id).count() > 0

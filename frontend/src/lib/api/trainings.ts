@@ -127,9 +127,21 @@ export async function getEnrollmentStats(itemId: string): Promise<EnrollmentStat
   return apiFetch<EnrollmentStats>("console", `/trainings/items/${itemId}/enrollment-stats`);
 }
 
+export interface CertificateGeneratePayload {
+  enrollment_ids?: string[];
+  regenerate?: boolean;
+  // NR-1 metadata
+  instructor_name?: string;
+  instructor_qualification?: string;
+  training_location?: string;
+  syllabus?: string;
+  training_modality?: string; // "presential" | "remote" | "hybrid"
+  formal_hours_minutes?: number;
+}
+
 export async function generateCertificates(
   itemId: string,
-  payload?: { enrollment_ids?: string[]; regenerate?: boolean }
+  payload?: CertificateGeneratePayload
 ): Promise<CertificateGenerateResult> {
   return apiFetch<CertificateGenerateResult>("console", `/trainings/items/${itemId}/certificates/generate`, {
     method: "POST",

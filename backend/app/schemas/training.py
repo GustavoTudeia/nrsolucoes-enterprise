@@ -124,6 +124,19 @@ class CertificateCreate(BaseModel):
     formal_hours_minutes: Optional[int] = None
 
 
+class CertificateGeneratePayload(BaseModel):
+    """Payload para geração em lote de certificados com metadados NR-1."""
+    enrollment_ids: Optional[List[UUID]] = None
+    regenerate: bool = False
+    # NR-1 metadata
+    instructor_name: Optional[str] = None
+    instructor_qualification: Optional[str] = None
+    training_location: Optional[str] = None
+    syllabus: Optional[str] = None
+    training_modality: Optional[str] = Field(None, description="presential | remote | hybrid")
+    formal_hours_minutes: Optional[int] = None
+
+
 class CertificateOut(BaseModel):
     """Saída de certificado."""
     id: UUID
@@ -210,34 +223,63 @@ class ActionItemWithEnrollments(BaseModel):
 
 # ==================== Portal Schemas ====================
 
+class LearningPathItemOut(BaseModel):
+    """Item de uma trilha de aprendizagem (portal)."""
+    order_index: int
+    content_item_id: UUID
+    title: str
+    description: Optional[str] = None
+    content_type: Optional[str] = None
+    duration_minutes: Optional[int] = None
+    is_completed: bool = False
+    completed_at: Optional[datetime] = None
+
+
+class LearningPathDetailOut(BaseModel):
+    """Detalhes da trilha de aprendizagem (portal)."""
+    learning_path_id: UUID
+    title: str
+    description: Optional[str] = None
+    total_items: int
+    completed_items: int
+    items: List[LearningPathItemOut]
+
+
 class PortalTrainingOut(BaseModel):
     """Treinamento para o portal do colaborador."""
     enrollment_id: UUID
-    
+
     # Dados do treinamento
     training_title: str
     training_description: Optional[str] = None
-    training_type: str  # video | pdf | link
+    training_type: str  # video | pdf | link | learning_path
     duration_minutes: Optional[int] = None
-    
+
     # Status
     status: str
     progress_percent: int
-    
+
     # Datas
     due_date: Optional[datetime] = None
     is_overdue: bool = False
     days_until_due: Optional[int] = None
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
-    
+
     # Conteúdo
     content_id: Optional[UUID] = None
     can_access: bool = True
-    
+
     # Certificado
     has_certificate: bool = False
     certificate_id: Optional[UUID] = None
+
+    # Learning Path
+    is_learning_path: bool = False
+    learning_path_id: Optional[UUID] = None
+    learning_path_title: Optional[str] = None
+    learning_path_item_count: int = 0
+    learning_path_completed_count: int = 0
 
 
 class PortalTrainingStart(BaseModel):

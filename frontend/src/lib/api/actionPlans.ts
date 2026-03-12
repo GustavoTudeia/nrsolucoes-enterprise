@@ -268,7 +268,7 @@ export async function addActionItem(
     notify_days_before?: number;
   }
 ) {
-  return apiFetch<{ id: string }>(
+  return apiFetch<{ id: string; auto_enroll_result?: { enrolled: number; already_enrolled: number } }>(
     "console",
     `/action-plans/${encodeURIComponent(planId)}/items`,
     { method: "POST", body: JSON.stringify(payload) }

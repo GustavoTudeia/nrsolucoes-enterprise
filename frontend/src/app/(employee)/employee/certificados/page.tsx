@@ -64,7 +64,7 @@ export default function CertificadosPage() {
     setDownloading(certificateId);
     try {
       const res = await fetch(
-        `/api/bff/employee/employee/me/certificates/${certificateId}/download`,
+        `/api/bff/employee/employee/me/certificates/${certificateId}/download?regenerate=true`,
         { credentials: "include" }
       );
 

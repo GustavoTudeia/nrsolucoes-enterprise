@@ -75,7 +75,7 @@ export default function PlatformTenantsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Plataforma • Tenants" subtitle="Criar tenants e gerenciar planos." />
+      <PageHeader title="Plataforma • Tenants" description="Criar tenants e gerenciar planos." />
 
       <Card>
         <CardHeader>

@@ -11,9 +11,15 @@ import { createCnpj, listCnpjs, updateCnpj } from "@/lib/api/org";
 import type { CNPJOut } from "@/lib/api/types";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Building2, Users, Layers, Plus } from "lucide-react";
 
 function onlyDigits(v: string) {
   return (v || "").replace(/\D/g, "");
+}
+
+function formatCnpj(raw: string) {
+  const d = onlyDigits(raw).padEnd(14, "0").slice(0, 14);
+  return `${d.slice(0, 2)}.${d.slice(2, 5)}.${d.slice(5, 8)}/${d.slice(8, 12)}-${d.slice(12, 14)}`;
 }
 
 function isValidCnpj(raw: string) {
@@ -41,7 +47,8 @@ function isValidCnpj(raw: string) {
 export default function CnpjsPage() {
   const [rows, setRows] = useState<CNPJOut[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showInactive, setShowInactive] = useState(true); // Mostrar inativos por padrão
+  const [showInactive, setShowInactive] = useState(true);
+  const [showForm, setShowForm] = useState(false);
   const [legalName, setLegalName] = useState("");
   const [tradeName, setTradeName] = useState("");
   const [cnpjNumber, setCnpjNumber] = useState("");
@@ -58,6 +65,10 @@ export default function CnpjsPage() {
 
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [confirmRow, setConfirmRow] = useState<CNPJOut | null>(null);
+
+  const activeCount = rows.filter((r) => r.is_active).length;
+  const totalEmployees = rows.reduce((acc, r) => acc + (r.employee_count || 0), 0);
+  const totalUnits = rows.reduce((acc, r) => acc + (r.unit_count || 0), 0);
 
   async function refresh() {
     setLoading(true);
@@ -82,6 +93,7 @@ export default function CnpjsPage() {
       setLegalName("");
       setTradeName("");
       setCnpjNumber("");
+      setShowForm(false);
       refresh();
     } catch (e: any) {
       toast.error(e?.message || "Falha ao cadastrar CNPJ");
@@ -122,52 +134,103 @@ export default function CnpjsPage() {
     if (!confirmRow) return;
     try {
       await updateCnpj(confirmRow.id, { is_active: !confirmRow.is_active });
-      toast.success(confirmRow.is_active ? "CNPJ desabilitado" : "CNPJ habilitado");
+      toast.success(confirmRow.is_active ? "CNPJ desativado" : "CNPJ ativado");
       setConfirmOpen(false);
       setConfirmRow(null);
       refresh();
     } catch (e: any) {
-      // Backend pode retornar 409 quando existir dependência ativa.
       toast.error(e?.message || "Não foi possível alterar o status do CNPJ");
     }
   }
 
-  // (sem duplicidade): edição e mudança de status são feitas via dialogs.
-
   return (
     <div className="container py-8 space-y-6">
-      <PageHeader title="CNPJs" description="Cadastro multi-CNPJ do tenant." />
+      <PageHeader title="CNPJs" description="Gerencie as empresas e filiais do tenant." />
 
-      <Card>
-        <CardHeader><CardTitle>Novo CNPJ</CardTitle></CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-3">
-          <div className="space-y-2">
-            <Label>Razão social</Label>
-            <Input value={legalName} onChange={(e) => setLegalName(e.target.value)} placeholder="Empresa X LTDA" />
-          </div>
-          <div className="space-y-2">
-            <Label>Nome fantasia</Label>
-            <Input value={tradeName} onChange={(e) => setTradeName(e.target.value)} placeholder="Empresa X" />
-          </div>
-          <div className="space-y-2">
-            <Label>CNPJ</Label>
-            <Input value={cnpjNumber} onChange={(e) => setCnpjNumber(onlyDigits(e.target.value))} placeholder="00000000000191" />
-            {cnpjNumber && !cnpjIsValid ? (
-              <p className="text-xs text-red-600">CNPJ inválido (verifique os dígitos)</p>
-            ) : (
-              <p className="text-xs text-muted-foreground">Digite 14 dígitos (sem máscara). Ex: 00000000000191</p>
-            )}
-          </div>
-          <div className="md:col-span-3">
-            <Button onClick={onCreate} disabled={!legalName || !cnpjIsValid}>Cadastrar</Button>
-          </div>
-        </CardContent>
-      </Card>
+      {/* Summary cards */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-blue-100 p-2.5">
+                <Building2 className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{activeCount}</p>
+                <p className="text-sm text-muted-foreground">CNPJ{activeCount !== 1 ? "s" : ""} ativo{activeCount !== 1 ? "s" : ""}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-emerald-100 p-2.5">
+                <Layers className="h-5 w-5 text-emerald-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{totalUnits}</p>
+                <p className="text-sm text-muted-foreground">Unidade{totalUnits !== 1 ? "s" : ""}/Setor{totalUnits !== 1 ? "es" : ""}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-6">
+            <div className="flex items-center gap-3">
+              <div className="rounded-lg bg-violet-100 p-2.5">
+                <Users className="h-5 w-5 text-violet-600" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold">{totalEmployees}</p>
+                <p className="text-sm text-muted-foreground">Colaborador{totalEmployees !== 1 ? "es" : ""}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
+      {/* New CNPJ form */}
+      {showForm ? (
+        <Card>
+          <CardHeader><CardTitle>Novo CNPJ</CardTitle></CardHeader>
+          <CardContent className="grid gap-4 md:grid-cols-3">
+            <div className="space-y-2">
+              <Label>Razao social</Label>
+              <Input value={legalName} onChange={(e) => setLegalName(e.target.value)} placeholder="Empresa X LTDA" />
+            </div>
+            <div className="space-y-2">
+              <Label>Nome fantasia</Label>
+              <Input value={tradeName} onChange={(e) => setTradeName(e.target.value)} placeholder="Empresa X" />
+            </div>
+            <div className="space-y-2">
+              <Label>CNPJ</Label>
+              <Input value={cnpjNumber} onChange={(e) => setCnpjNumber(onlyDigits(e.target.value))} placeholder="00000000000191" maxLength={14} />
+              {cnpjNumber && !cnpjIsValid ? (
+                <p className="text-xs text-red-600">CNPJ invalido (verifique os digitos)</p>
+              ) : cnpjNumber && cnpjIsValid ? (
+                <p className="text-xs text-emerald-600">{formatCnpj(cnpjDigits)}</p>
+              ) : (
+                <p className="text-xs text-muted-foreground">14 digitos, sem mascara</p>
+              )}
+            </div>
+            <div className="md:col-span-3 flex gap-2">
+              <Button onClick={onCreate} disabled={!legalName || !cnpjIsValid}>Cadastrar</Button>
+              <Button variant="outline" onClick={() => setShowForm(false)}>Cancelar</Button>
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Button onClick={() => setShowForm(true)}>
+          <Plus className="h-4 w-4 mr-1" /> Novo CNPJ
+        </Button>
+      )}
+
+      {/* CNPJ list */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
-            <CardTitle>Lista</CardTitle>
+            <CardTitle>Empresas cadastradas</CardTitle>
             <label className="flex items-center gap-2 text-sm">
               <input
                 type="checkbox"
@@ -183,24 +246,38 @@ export default function CnpjsPage() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Razão social</TableHead>
+                <TableHead>Razao social</TableHead>
                 <TableHead>Fantasia</TableHead>
                 <TableHead>CNPJ</TableHead>
+                <TableHead className="text-center">Unidades</TableHead>
+                <TableHead className="text-center">Colaboradores</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
+                <TableHead className="text-right">Acoes</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
-                <TableRow><TableCell colSpan={5} className="text-muted-foreground">Carregando…</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-muted-foreground">Carregando...</TableCell></TableRow>
               ) : rows.length === 0 ? (
-                <TableRow><TableCell colSpan={5} className="text-muted-foreground">Nenhum CNPJ cadastrado.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={7} className="text-muted-foreground">Nenhum CNPJ cadastrado.</TableCell></TableRow>
               ) : (
                 rows.map((r) => (
-                  <TableRow key={r.id}>
+                  <TableRow key={r.id} className={!r.is_active ? "opacity-60" : ""}>
                     <TableCell className="font-medium">{r.legal_name}</TableCell>
                     <TableCell>{r.trade_name || "-"}</TableCell>
-                    <TableCell>{r.cnpj_number}</TableCell>
+                    <TableCell className="font-mono text-sm">{formatCnpj(r.cnpj_number)}</TableCell>
+                    <TableCell className="text-center">
+                      <span className="inline-flex items-center gap-1 text-sm">
+                        <Layers className="h-3.5 w-3.5 text-muted-foreground" />
+                        {r.unit_count || 0}
+                      </span>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <span className="inline-flex items-center gap-1 text-sm">
+                        <Users className="h-3.5 w-3.5 text-muted-foreground" />
+                        {r.employee_count || 0}
+                      </span>
+                    </TableCell>
                     <TableCell>
                       {r.is_active ? (
                         <span className="inline-flex items-center rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-700">Ativo</span>
@@ -210,9 +287,7 @@ export default function CnpjsPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="inline-flex gap-2">
-                        <Button variant="outline" size="sm" onClick={() => openEdit(r)}>
-                          Editar
-                        </Button>
+                        <Button variant="outline" size="sm" onClick={() => openEdit(r)}>Editar</Button>
                         <Button variant={r.is_active ? "destructive" : "default"} size="sm" onClick={() => openToggle(r)}>
                           {r.is_active ? "Desativar" : "Ativar"}
                         </Button>
@@ -226,6 +301,7 @@ export default function CnpjsPage() {
         </CardContent>
       </Card>
 
+      {/* Edit dialog */}
       <Dialog open={editOpen} onOpenChange={setEditOpen}>
         <DialogContent>
           <DialogHeader>
@@ -233,7 +309,7 @@ export default function CnpjsPage() {
           </DialogHeader>
           <div className="grid gap-4">
             <div className="space-y-2">
-              <Label>Razão social</Label>
+              <Label>Razao social</Label>
               <Input value={editLegalName} onChange={(e) => setEditLegalName(e.target.value)} />
             </div>
             <div className="space-y-2">
@@ -242,12 +318,12 @@ export default function CnpjsPage() {
             </div>
             <div className="space-y-2">
               <Label>CNPJ</Label>
-              <Input value={editCnpjNumber} onChange={(e) => setEditCnpjNumber(onlyDigits(e.target.value))} />
+              <Input value={editCnpjNumber} onChange={(e) => setEditCnpjNumber(onlyDigits(e.target.value))} maxLength={14} />
               {editCnpjNumber && !editCnpjValid ? (
-                <p className="text-xs text-red-600">CNPJ inválido (verifique os dígitos)</p>
-              ) : (
-                <p className="text-xs text-muted-foreground">Manter 14 dígitos (sem máscara).</p>
-              )}
+                <p className="text-xs text-red-600">CNPJ invalido</p>
+              ) : editCnpjNumber && editCnpjValid ? (
+                <p className="text-xs text-emerald-600">{formatCnpj(editDigits)}</p>
+              ) : null}
             </div>
           </div>
           <DialogFooter>
@@ -257,6 +333,7 @@ export default function CnpjsPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Toggle active dialog */}
       <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
         <DialogContent>
           <DialogHeader>
@@ -265,13 +342,13 @@ export default function CnpjsPage() {
           <div className="space-y-2">
             <p className="text-sm">
               {confirmRow?.is_active
-                ? "Ao desativar, este CNPJ deixa de ser selecionável em operações do tenant. Recomendação: desative primeiro unidades/setores vinculados se ainda estiverem em uso."
-                : "Ao ativar, este CNPJ volta a ficar disponível para operações."}
+                ? "Ao desativar, este CNPJ deixa de ser selecionavel. Desative primeiro unidades/setores vinculados se ainda estiverem em uso."
+                : "Ao ativar, este CNPJ volta a ficar disponivel para operacoes."}
             </p>
             {confirmRow ? (
               <div className="rounded-md border bg-muted/40 p-3 text-sm">
-                <div><span className="font-medium">Razão social:</span> {confirmRow.legal_name}</div>
-                <div><span className="font-medium">CNPJ:</span> {confirmRow.cnpj_number}</div>
+                <div><span className="font-medium">Razao social:</span> {confirmRow.legal_name}</div>
+                <div><span className="font-medium">CNPJ:</span> {formatCnpj(confirmRow.cnpj_number)}</div>
               </div>
             ) : null}
           </div>

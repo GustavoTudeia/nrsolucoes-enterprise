@@ -151,7 +151,7 @@ export default function ValidarCertificadoPage() {
                   }`}>
                     {result.valid ? "Certificado Válido" : "Certificado Inválido"}
                   </h2>
-                  <Badge variant={result.valid ? "default" : "destructive"}>
+                  <Badge variant={result.valid ? "default" : "outline"}>
                     {result.valid ? "Autenticado" : "Não validado"}
                   </Badge>
                 </div>

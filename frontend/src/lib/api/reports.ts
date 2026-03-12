@@ -163,10 +163,8 @@ export async function downloadPgrDossierPdf(params?: {
   if (params?.limit_audit) qs.set("limit_audit", String(params.limit_audit));
   const q = qs.toString();
 
-  const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
-  const token = typeof window !== "undefined" ? localStorage.getItem("access_token") || "" : "";
-  const res = await fetch(`${API_URL}/api/v1/reports/pgr-dossier/pdf${q ? `?${q}` : ""}`, {
-    headers: { Authorization: `Bearer ${token}` },
+  const res = await fetch(`/api/bff/console/reports/pgr-dossier/pdf${q ? `?${q}` : ""}`, {
+    credentials: "include",
   });
   if (!res.ok) throw new Error("Erro ao gerar PDF");
   return res.blob();

@@ -207,6 +207,50 @@ export default function PlanosPage() {
           </Card>
         </Container>
       </Section>
+
+      {/* FAQ */}
+      <Section>
+        <Container>
+          <SectionHeader
+            eyebrow="Perguntas frequentes"
+            title="Dúvidas sobre planos e implantação"
+            align="center"
+          />
+          <div className="mx-auto mt-10 max-w-3xl space-y-4">
+            {[
+              {
+                q: "Posso testar a plataforma antes de contratar?",
+                a: "Sim. Oferecemos demonstrações guiadas orientadas ao seu contexto, sem compromisso. Entre em contato para agendar.",
+              },
+              {
+                q: "Como funciona a implantação?",
+                a: "Oferecemos onboarding dedicado com configuração de CNPJs, unidades, perfis e políticas de anonimização. O setup inicial leva dias, não meses.",
+              },
+              {
+                q: "Os dados são protegidos pela LGPD?",
+                a: "A plataforma foi construída com LGPD by design: anonimização configurável, limiares mínimos, isolamento multi-tenant e criptografia AES-256.",
+              },
+              {
+                q: "Posso usar com múltiplos CNPJs e unidades?",
+                a: "Sim. Multi-CNPJ é nativo na arquitetura. Cada CNPJ/unidade tem isolamento, escopos e permissões independentes.",
+              },
+              {
+                q: "Existe limite de colaboradores?",
+                a: "Os limites variam por plano e podem ser ajustados por contrato. O plano Enterprise oferece limites elevados e personalizáveis.",
+              },
+              {
+                q: "Vocês oferecem suporte técnico?",
+                a: "Sim. Todos os planos incluem suporte por email e WhatsApp. Planos Enterprise contam com SLA dedicado e acompanhamento contínuo.",
+              },
+            ].map((faq) => (
+              <Card key={faq.q} className="p-6">
+                <div className="text-sm font-semibold">{faq.q}</div>
+                <p className="mt-2 text-sm text-muted-foreground">{faq.a}</p>
+              </Card>
+            ))}
+          </div>
+        </Container>
+      </Section>
     </div>
   );
 }

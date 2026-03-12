@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -29,7 +30,7 @@ import {
 } from "lucide-react";
 import {
   enrollEmployees, listEnrollments, getEnrollmentStats,
-  generateCertificates, type EnrollTargetPayload
+  generateCertificates, type EnrollTargetPayload, type CertificateGeneratePayload
 } from "@/lib/api/trainings";
 import type { EnrollmentOut, EnrollmentStats } from "@/lib/api/trainings";
 
@@ -55,12 +56,22 @@ export default function EnrollmentsTab({ itemId, itemType, tenantSlug, onUpdate,
   const [stats, setStats] = useState<EnrollmentStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [enrollDialogOpen, setEnrollDialogOpen] = useState(false);
+  const [certDialogOpen, setCertDialogOpen] = useState(false);
   const [enrolling, setEnrolling] = useState(false);
   const [generating, setGenerating] = useState(false);
 
+  // NR-1 certificate metadata form
+  const [certInstructorName, setCertInstructorName] = useState("");
+  const [certInstructorQualification, setCertInstructorQualification] = useState("");
+  const [certTrainingLocation, setCertTrainingLocation] = useState("");
+  const [certTrainingModality, setCertTrainingModality] = useState("");
+  const [certFormalHours, setCertFormalHours] = useState<number | "">("");
+  const [certFormalMinutes, setCertFormalMinutes] = useState<number | "">("");
+  const [certSyllabus, setCertSyllabus] = useState("");
+
   // Modal de sucesso após matrícula
   const [successDialogOpen, setSuccessDialogOpen] = useState(false);
-  const [enrollmentResult, setEnrollmentResult] = useState<{ enrolled: number; already_enrolled: number } | null>(null);
+  const [enrollmentResult, setEnrollmentResult] = useState<{ enrolled: number; already_enrolled: number; skipped?: number } | null>(null);
 
   // Formulário de matrícula
   const [targetType, setTargetType] = useState<string>("org_unit");
@@ -118,14 +129,42 @@ export default function EnrollmentsTab({ itemId, itemType, tenantSlug, onUpdate,
     }
   }
 
+  function handleOpenCertDialog() {
+    // Reset form
+    setCertInstructorName("");
+    setCertInstructorQualification("");
+    setCertTrainingLocation("");
+    setCertTrainingModality("");
+    setCertFormalHours("");
+    setCertFormalMinutes("");
+    setCertSyllabus("");
+    setCertDialogOpen(true);
+  }
+
   async function handleGenerateCertificates() {
     setGenerating(true);
     try {
-      const result = await generateCertificates(itemId);
+      // Build payload with NR-1 metadata
+      const payload: CertificateGeneratePayload = {};
+      if (certInstructorName) payload.instructor_name = certInstructorName;
+      if (certInstructorQualification) payload.instructor_qualification = certInstructorQualification;
+      if (certTrainingLocation) payload.training_location = certTrainingLocation;
+      if (certTrainingModality) payload.training_modality = certTrainingModality;
+      if (certSyllabus) payload.syllabus = certSyllabus;
+
+      // Convert hours + minutes to total minutes
+      const hours = typeof certFormalHours === "number" ? certFormalHours : 0;
+      const minutes = typeof certFormalMinutes === "number" ? certFormalMinutes : 0;
+      const totalMinutes = hours * 60 + minutes;
+      if (totalMinutes > 0) payload.formal_hours_minutes = totalMinutes;
+
+      const result = await generateCertificates(itemId, payload);
+
+      setCertDialogOpen(false);
 
       if (result.generated > 0) {
         toast.success(`${result.generated} certificado(s) gerado(s)!`);
-      } else if (result.already_enrolled > 0) {
+      } else if (result.skipped > 0) {
         toast.info("Todos os certificados já foram gerados.");
       } else {
         toast.info("Nenhum colaborador elegível para certificado.");
@@ -241,14 +280,10 @@ export default function EnrollmentsTab({ itemId, itemType, tenantSlug, onUpdate,
         <Button
           size="sm"
           variant="outline"
-          onClick={handleGenerateCertificates}
+          onClick={handleOpenCertDialog}
           disabled={generating || !stats || stats.completed === 0}
         >
-          {generating ? (
-            <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
-          ) : (
-            <Award className="h-4 w-4 mr-1" />
-          )}
+          <Award className="h-4 w-4 mr-1" />
           Gerar Certificados
         </Button>
         <Button size="sm" variant="ghost" onClick={loadData} disabled={loading}>
@@ -422,6 +457,129 @@ export default function EnrollmentsTab({ itemId, itemType, tenantSlug, onUpdate,
                 <>
                   <UserPlus className="h-4 w-4 mr-1" />
                   Matricular
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog de Metadados NR-1 para Certificados */}
+      <Dialog open={certDialogOpen} onOpenChange={setCertDialogOpen}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Award className="h-5 w-5" />
+              Gerar Certificados NR-1
+            </DialogTitle>
+            <DialogDescription>
+              Preencha os metadados do treinamento para os certificados.
+              Todos os campos são opcionais.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="cert-instructor">Nome do Instrutor</Label>
+              <Input
+                id="cert-instructor"
+                placeholder="Ex: João da Silva"
+                value={certInstructorName}
+                onChange={e => setCertInstructorName(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="cert-qualification">Qualificação do Instrutor</Label>
+              <Input
+                id="cert-qualification"
+                placeholder="Ex: Engenheiro de Segurança do Trabalho, CREA 12345"
+                value={certInstructorQualification}
+                onChange={e => setCertInstructorQualification(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="cert-location">Local do Treinamento</Label>
+              <Input
+                id="cert-location"
+                placeholder="Ex: Sala de treinamento - Matriz, São Paulo/SP"
+                value={certTrainingLocation}
+                onChange={e => setCertTrainingLocation(e.target.value)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="cert-modality">Modalidade</Label>
+              <Select value={certTrainingModality} onValueChange={setCertTrainingModality}>
+                <SelectTrigger id="cert-modality">
+                  <SelectValue placeholder="Selecione a modalidade..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="presential">Presencial</SelectItem>
+                  <SelectItem value="remote">Remoto / EAD</SelectItem>
+                  <SelectItem value="hybrid">Híbrido</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Carga Horária Formal</Label>
+              <div className="flex items-center gap-2">
+                <div className="flex-1">
+                  <Input
+                    type="number"
+                    min={0}
+                    max={999}
+                    placeholder="Horas"
+                    value={certFormalHours}
+                    onChange={e => setCertFormalHours(e.target.value === "" ? "" : parseInt(e.target.value) || 0)}
+                  />
+                </div>
+                <span className="text-sm text-muted-foreground">h</span>
+                <div className="flex-1">
+                  <Input
+                    type="number"
+                    min={0}
+                    max={59}
+                    placeholder="Min"
+                    value={certFormalMinutes}
+                    onChange={e => setCertFormalMinutes(e.target.value === "" ? "" : parseInt(e.target.value) || 0)}
+                  />
+                </div>
+                <span className="text-sm text-muted-foreground">min</span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Carga horária total do treinamento conforme NR-1.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="cert-syllabus">Conteúdo Programático</Label>
+              <Textarea
+                id="cert-syllabus"
+                placeholder="Descreva o conteúdo programático do treinamento..."
+                rows={4}
+                value={certSyllabus}
+                onChange={e => setCertSyllabus(e.target.value)}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCertDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleGenerateCertificates} disabled={generating}>
+              {generating ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-1 animate-spin" />
+                  Gerando...
+                </>
+              ) : (
+                <>
+                  <Award className="h-4 w-4 mr-1" />
+                  Gerar
                 </>
               )}
             </Button>

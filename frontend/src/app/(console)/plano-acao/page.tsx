@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { listAssessments } from "@/lib/api/risks";
 import type { RiskAssessmentOut } from "@/lib/api/types";
@@ -27,7 +27,7 @@ import {
   updateComment as apiUpdateComment,
   type ActionPlanOut, type ActionItemOut, type ResponsibleUserInfo,
 } from "@/lib/api/actionPlans";
-import { listContents } from "@/lib/api/lms";
+import { listContents, listLearningPaths } from "@/lib/api/lms";
 import { useConsole } from "@/components/console/console-provider";
 import { AlertTriangle, Calendar, CheckCircle2, Clock, MessageSquare, Paperclip, Plus, TrendingUp, User, GraduationCap, Building2, ClipboardList, Users, Trash2, Send, Upload, Download, FileText, Link as LinkIcon, Search, Shield, Pencil, Filter, UsersRound } from "lucide-react";
 
@@ -103,7 +103,7 @@ export default function PlanoAcaoPage() {
   const [selectedItem, setSelectedItem] = useState<ActionItemOut | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [users, setUsers] = useState<ResponsibleUserInfo[]>([]);
-  const [contents, setContents] = useState<{ id: string; title: string }[]>([]);
+  const [educationalOptions, setEducationalOptions] = useState<{ id: string; title: string; type: "content_item" | "learning_path" }[]>([]);
 
   // Form states
   const [itemType, setItemType] = useState<string>("educational");
@@ -114,6 +114,13 @@ export default function PlanoAcaoPage() {
   const [dueDate, setDueDate] = useState("");
   const [priority, setPriority] = useState("medium");
   const [educationRefId, setEducationRefId] = useState("");
+
+  // Targeting states (educational items)
+  const [targetType, setTargetType] = useState("all_employees");
+  const [targetOrgUnitId, setTargetOrgUnitId] = useState("");
+  const [targetCnpjId, setTargetCnpjId] = useState("");
+  const [autoEnroll, setAutoEnroll] = useState(true);
+  const [enrollmentDueDays, setEnrollmentDueDays] = useState(30);
 
   // NR-1 form states
   const [controlHierarchy, setControlHierarchy] = useState("");
@@ -188,11 +195,16 @@ export default function PlanoAcaoPage() {
     } catch { setUsers([]); }
   }
 
-  async function loadContents() {
+  async function loadEducationalOptions() {
     try {
-      const c = await listContents();
-      setContents(c.map(x => ({ id: x.id, title: x.title })));
-    } catch { setContents([]); }
+      const [contentsRes, pathsRes] = await Promise.all([
+        listContents(),
+        listLearningPaths(),
+      ]);
+      const contentOpts = contentsRes.map(x => ({ id: x.id, title: x.title, type: "content_item" as const }));
+      const pathOpts = pathsRes.map(x => ({ id: x.id, title: x.title, type: "learning_path" as const }));
+      setEducationalOptions([...contentOpts, ...pathOpts]);
+    } catch { setEducationalOptions([]); }
   }
 
   async function loadOrgUnits() {
@@ -209,7 +221,7 @@ export default function PlanoAcaoPage() {
     } catch { setCnpjsList([]); }
   }
 
-  useEffect(() => { loadAssessments(); loadUsers(); loadContents(); loadOrgUnits(); loadCnpjs(); }, [scope.cnpjId]);
+  useEffect(() => { loadAssessments(); loadUsers(); loadEducationalOptions(); loadOrgUnits(); loadCnpjs(); }, [scope.cnpjId]);
   useEffect(() => { if (assessmentId) loadPlans(assessmentId); }, [assessmentId]);
   useEffect(() => { if (planId) loadItems(planId); }, [planId]);
 
@@ -231,19 +243,36 @@ export default function PlanoAcaoPage() {
       else if (responsible) payload.responsible = responsible;
       if (dueDate) payload.due_date = new Date(dueDate).toISOString();
       if (itemType === "educational" && educationRefId) {
-        payload.education_ref_type = "content_item";
+        const selectedOption = educationalOptions.find(o => o.id === educationRefId);
+        payload.education_ref_type = selectedOption?.type || "content_item";
         payload.education_ref_id = educationRefId;
+        // Targeting fields
+        payload.target_type = targetType;
+        if (targetType === "org_unit" && targetOrgUnitId) payload.target_org_unit_id = targetOrgUnitId;
+        if (targetType === "cnpj" && targetCnpjId) payload.target_cnpj_id = targetCnpjId;
+        payload.auto_enroll = autoEnroll;
+        payload.enrollment_due_days = enrollmentDueDays;
       }
       if (controlHierarchy) payload.control_hierarchy = controlHierarchy;
       if (itemType === "educational" && trainingTypeField) payload.training_type = trainingTypeField;
       if (monitoringFrequency) payload.monitoring_frequency = monitoringFrequency;
       if (effectivenessCriteria.trim()) payload.effectiveness_criteria = effectivenessCriteria;
       if (affectedWorkersCount !== "" && affectedWorkersCount > 0) payload.affected_workers_count = affectedWorkersCount;
-      await addActionItem(planId, payload);
+      const result = await addActionItem(planId, payload);
       toast.success("Item adicionado");
+      if (result.auto_enroll_result) {
+        const { enrolled, already_enrolled } = result.auto_enroll_result;
+        if (enrolled > 0) {
+          toast.success(`Auto-matrícula: ${enrolled} colaborador(es) matriculado(s)${already_enrolled > 0 ? `, ${already_enrolled} já matriculado(s)` : ""}`);
+        } else if (already_enrolled > 0) {
+          toast.info(`Todos os ${already_enrolled} colaborador(es) já estavam matriculados`);
+        }
+      }
       await loadItems(planId);
-      setTitle("Nova ação"); setDescription(""); setResponsible(""); setResponsibleUserId(""); setDueDate("");
+      // Reset form
+      setTitle("Nova ação"); setDescription(""); setResponsible(""); setResponsibleUserId(""); setDueDate(""); setEducationRefId("");
       setControlHierarchy(""); setTrainingTypeField(""); setMonitoringFrequency(""); setEffectivenessCriteria(""); setAffectedWorkersCount("");
+      setTargetType("all_employees"); setTargetOrgUnitId(""); setTargetCnpjId(""); setAutoEnroll(true); setEnrollmentDueDays(30);
     } catch (e: any) { toast.error(e?.message || "Erro"); }
   }
 
@@ -613,16 +642,110 @@ export default function PlanoAcaoPage() {
               <Label>Critério de Eficácia</Label>
               <Textarea value={effectivenessCriteria} onChange={e => setEffectivenessCriteria(e.target.value)} rows={2} placeholder="Descreva como a eficácia será avaliada..." />
             </div>
-            {itemType === "educational" && contents.length > 0 && (
+            {itemType === "educational" && educationalOptions.length > 0 && (
               <div className="grid gap-2">
-                <Label>Conteúdo LMS</Label>
+                <Label>Conteúdo / Trilha LMS</Label>
                 <Select value={educationRefId || undefined} onValueChange={v => setEducationRefId(v === "__none__" ? "" : v)}>
-                  <SelectTrigger><SelectValue placeholder="Vincular conteúdo..." /></SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Vincular conteúdo ou trilha..." /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">Nenhum</SelectItem>
-                    {contents.map(c => <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>)}
+                    {educationalOptions.filter(o => o.type === "content_item").length > 0 && (
+                      <SelectGroup>
+                        <SelectLabel>Conteúdos</SelectLabel>
+                        {educationalOptions.filter(o => o.type === "content_item").map(c => (
+                          <SelectItem key={c.id} value={c.id}>{c.title}</SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
+                    {educationalOptions.filter(o => o.type === "learning_path").length > 0 && (
+                      <SelectGroup>
+                        <SelectLabel>Trilhas de Aprendizagem</SelectLabel>
+                        {educationalOptions.filter(o => o.type === "learning_path").map(p => (
+                          <SelectItem key={p.id} value={p.id}>{p.title}</SelectItem>
+                        ))}
+                      </SelectGroup>
+                    )}
                   </SelectContent>
                 </Select>
+              </div>
+            )}
+            {itemType === "educational" && educationRefId && educationRefId !== "__none__" && (
+              <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <UsersRound className="h-4 w-4" />
+                  Público-Alvo e Matrícula
+                </div>
+                <div className="grid gap-2">
+                  <Label className="text-xs">Público-alvo</Label>
+                  <Select value={targetType} onValueChange={v => { setTargetType(v); setTargetOrgUnitId(""); setTargetCnpjId(""); }}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all_employees">
+                        <span className="flex items-center gap-2"><Users className="h-3.5 w-3.5" /> Todos os colaboradores</span>
+                      </SelectItem>
+                      <SelectItem value="org_unit">
+                        <span className="flex items-center gap-2"><Building2 className="h-3.5 w-3.5" /> Por unidade/setor</span>
+                      </SelectItem>
+                      <SelectItem value="cnpj">
+                        <span className="flex items-center gap-2"><Building2 className="h-3.5 w-3.5" /> Por CNPJ</span>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {targetType === "org_unit" && (
+                  <div className="grid gap-2">
+                    <Label className="text-xs">Unidade / Setor</Label>
+                    <Select value={targetOrgUnitId || undefined} onValueChange={setTargetOrgUnitId}>
+                      <SelectTrigger><SelectValue placeholder="Selecione a unidade..." /></SelectTrigger>
+                      <SelectContent>
+                        {orgUnits.map(u => <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>)}
+                        {orgUnits.length === 0 && <SelectItem value="__empty__" disabled>Nenhuma unidade cadastrada</SelectItem>}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                {targetType === "cnpj" && (
+                  <div className="grid gap-2">
+                    <Label className="text-xs">CNPJ</Label>
+                    <Select value={targetCnpjId || undefined} onValueChange={setTargetCnpjId}>
+                      <SelectTrigger><SelectValue placeholder="Selecione o CNPJ..." /></SelectTrigger>
+                      <SelectContent>
+                        {cnpjsList.map(c => <SelectItem key={c.id} value={c.id}>{c.legal_name}</SelectItem>)}
+                        {cnpjsList.length === 0 && <SelectItem value="__empty__" disabled>Nenhum CNPJ cadastrado</SelectItem>}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="grid gap-2">
+                    <Label className="text-xs">Prazo para conclusão (dias)</Label>
+                    <Input
+                      type="number"
+                      min={1}
+                      max={365}
+                      value={enrollmentDueDays}
+                      onChange={e => setEnrollmentDueDays(parseInt(e.target.value) || 30)}
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label className="text-xs">Auto-matrícula</Label>
+                    <button
+                      type="button"
+                      role="switch"
+                      aria-checked={autoEnroll}
+                      onClick={() => setAutoEnroll(!autoEnroll)}
+                      className={`relative inline-flex h-9 w-full items-center justify-center gap-2 rounded-md border px-3 text-sm font-medium transition-colors ${autoEnroll ? "bg-primary text-primary-foreground border-primary" : "bg-background text-muted-foreground border-input hover:bg-accent"}`}
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5" />
+                      {autoEnroll ? "Matricular automaticamente" : "Matrícula manual"}
+                    </button>
+                  </div>
+                </div>
+                {autoEnroll && (
+                  <p className="text-xs text-muted-foreground">
+                    Ao criar o item, os colaboradores do público-alvo selecionado serão matriculados automaticamente com prazo de {enrollmentDueDays} dia(s).
+                  </p>
+                )}
               </div>
             )}
             <Button onClick={onAddItem} disabled={!planId || !title.trim()} className="w-full">

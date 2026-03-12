@@ -181,234 +181,24 @@ class CertificateService:
         return cert
 
     def generate_pdf(self, certificate: TrainingCertificate) -> Tuple[bytes, str]:
-        """Gera PDF do certificado.
+        """Gera PDF enterprise do certificado.
 
         Returns:
             Tuple[bytes, str]: (conteúdo do PDF, hash SHA256)
         """
-        # Usar reportlab para gerar PDF profissional
         try:
-            from reportlab.lib import colors
-            from reportlab.lib.pagesizes import A4, landscape
-            from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
-            from reportlab.lib.units import cm, mm
-            from reportlab.platypus import (
-                SimpleDocTemplate,
-                Paragraph,
-                Spacer,
-                Table,
-                TableStyle,
-                Image,
-            )
-            from reportlab.lib.enums import TA_CENTER, TA_LEFT
+            from app.services.certificate_pdf import generate_certificate_pdf, calculate_pdf_hash
         except ImportError:
-            # Fallback: gerar PDF simples com fpdf ou retornar placeholder
             return self._generate_simple_pdf(certificate)
 
-        buffer = BytesIO()
-        doc = SimpleDocTemplate(
-            buffer,
-            pagesize=landscape(A4),
-            leftMargin=2 * cm,
-            rightMargin=2 * cm,
-            topMargin=2 * cm,
-            bottomMargin=2 * cm,
-        )
+        # Buscar tenant para personalização
+        tenant = None
+        if certificate.tenant_id:
+            from app.models.tenant import Tenant
+            tenant = self.db.query(Tenant).filter(Tenant.id == certificate.tenant_id).first()
 
-        styles = getSampleStyleSheet()
-
-        # Estilos customizados
-        title_style = ParagraphStyle(
-            "CertTitle",
-            parent=styles["Heading1"],
-            fontSize=28,
-            alignment=TA_CENTER,
-            spaceAfter=20,
-            textColor=colors.HexColor("#1a365d"),
-        )
-
-        subtitle_style = ParagraphStyle(
-            "CertSubtitle",
-            parent=styles["Heading2"],
-            fontSize=18,
-            alignment=TA_CENTER,
-            spaceAfter=30,
-            textColor=colors.HexColor("#2d3748"),
-        )
-
-        body_style = ParagraphStyle(
-            "CertBody",
-            parent=styles["Normal"],
-            fontSize=14,
-            alignment=TA_CENTER,
-            spaceAfter=15,
-            leading=20,
-        )
-
-        name_style = ParagraphStyle(
-            "CertName",
-            parent=styles["Heading2"],
-            fontSize=24,
-            alignment=TA_CENTER,
-            spaceAfter=20,
-            textColor=colors.HexColor("#1a365d"),
-            fontName="Helvetica-Bold",
-        )
-
-        footer_style = ParagraphStyle(
-            "CertFooter",
-            parent=styles["Normal"],
-            fontSize=10,
-            alignment=TA_CENTER,
-            textColor=colors.HexColor("#718096"),
-        )
-
-        elements = []
-
-        # Título
-        elements.append(Paragraph("CERTIFICADO DE CONCLUSÃO", title_style))
-        elements.append(
-            Paragraph("Programa de Gerenciamento de Riscos - NR-1", subtitle_style)
-        )
-        elements.append(Spacer(1, 20))
-
-        # Corpo
-        elements.append(Paragraph("Certificamos que", body_style))
-        elements.append(Paragraph(certificate.employee_name.upper(), name_style))
-
-        if certificate.employee_cpf:
-            cpf_masked = f"CPF: ***.***.***-{certificate.employee_cpf[-2:]}"
-            elements.append(Paragraph(cpf_masked, body_style))
-
-        elements.append(Spacer(1, 20))
-
-        elements.append(Paragraph(f"concluiu com êxito o treinamento", body_style))
-
-        elements.append(
-            Paragraph(
-                f"<b>{certificate.training_title}</b>",
-                ParagraphStyle("Training", parent=body_style, fontSize=16),
-            )
-        )
-
-        if certificate.training_description:
-            elements.append(
-                Paragraph(
-                    certificate.training_description[:200],
-                    ParagraphStyle(
-                        "Desc",
-                        parent=body_style,
-                        fontSize=12,
-                        textColor=colors.HexColor("#4a5568"),
-                    ),
-                )
-            )
-
-        elements.append(Spacer(1, 15))
-
-        # Informações
-        info_text = (
-            f"Concluído em: {certificate.training_completed_at.strftime('%d/%m/%Y')}"
-        )
-        if certificate.training_duration_minutes:
-            hours = certificate.training_duration_minutes // 60
-            mins = certificate.training_duration_minutes % 60
-            if hours > 0:
-                info_text += f" | Carga horária: {hours}h{mins:02d}min"
-            else:
-                info_text += f" | Duração: {mins} minutos"
-
-        elements.append(Paragraph(info_text, body_style))
-
-        if certificate.risk_dimension:
-            dimension_names = {
-                "governance": "Governança",
-                "hazards": "Identificação de Perigos",
-                "controls": "Controles",
-                "training": "Capacitação",
-            }
-            dim_name = dimension_names.get(
-                certificate.risk_dimension, certificate.risk_dimension
-            )
-            elements.append(Paragraph(f"Dimensão: {dim_name}", body_style))
-
-        elements.append(Spacer(1, 30))
-
-        # Rodapé
-        elements.append(
-            Paragraph(f"Certificado nº {certificate.certificate_number}", footer_style)
-        )
-
-        if certificate.issuer_name:
-            elements.append(
-                Paragraph(f"Emitido por: {certificate.issuer_name}", footer_style)
-            )
-
-        elements.append(
-            Paragraph(
-                f"Data de emissão: {certificate.issued_at.strftime('%d/%m/%Y às %H:%M')}",
-                footer_style,
-            )
-        )
-
-        if certificate.valid_until:
-            elements.append(
-                Paragraph(
-                    f"Válido até: {certificate.valid_until.strftime('%d/%m/%Y')}",
-                    footer_style,
-                )
-            )
-
-        if certificate.validation_code:
-            elements.append(Spacer(1, 10))
-            elements.append(
-                Paragraph(
-                    f"Código de validação: {certificate.validation_code}",
-                    ParagraphStyle(
-                        "Code", parent=footer_style, fontName="Courier", fontSize=11
-                    ),
-                )
-            )
-
-        # NR-1 Mandatory Information
-        nr1_info = []
-        if certificate.instructor_name:
-            instructor_text = f"Instrutor: {certificate.instructor_name}"
-            if certificate.instructor_qualification:
-                instructor_text += f" — {certificate.instructor_qualification}"
-            nr1_info.append(instructor_text)
-
-        if certificate.training_location:
-            nr1_info.append(f"Local: {certificate.training_location}")
-
-        if certificate.training_modality:
-            modality_labels = {"presential": "Presencial", "remote": "Remoto/EAD", "hybrid": "Híbrido"}
-            nr1_info.append(f"Modalidade: {modality_labels.get(certificate.training_modality, certificate.training_modality)}")
-
-        if certificate.formal_hours_minutes:
-            fh = certificate.formal_hours_minutes // 60
-            fm = certificate.formal_hours_minutes % 60
-            nr1_info.append(f"Carga horária formal: {fh}h{fm:02d}min" if fh > 0 else f"Carga horária formal: {fm} minutos")
-
-        if nr1_info:
-            elements.append(Spacer(1, 10))
-            for info in nr1_info:
-                elements.append(Paragraph(info, footer_style))
-
-        if certificate.syllabus:
-            elements.append(Spacer(1, 8))
-            elements.append(Paragraph("Conteúdo Programático:", ParagraphStyle("SyllTitle", parent=footer_style, fontName="Helvetica-Bold")))
-            # Truncate syllabus for PDF readability
-            syllabus_text = certificate.syllabus[:500]
-            if len(certificate.syllabus) > 500:
-                syllabus_text += "..."
-            elements.append(Paragraph(syllabus_text, ParagraphStyle("Syll", parent=footer_style, fontSize=9)))
-
-        # Build PDF
-        doc.build(elements)
-
-        pdf_content = buffer.getvalue()
-        pdf_hash = hashlib.sha256(pdf_content).hexdigest()
+        pdf_content = generate_certificate_pdf(certificate, tenant)
+        pdf_hash = calculate_pdf_hash(pdf_content)
 
         return pdf_content, pdf_hash
 

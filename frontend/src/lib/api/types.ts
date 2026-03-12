@@ -24,6 +24,10 @@ export interface MeResponse {
   tenant?: { id: string; name: string; slug?: string } | null;
   is_platform_admin?: boolean;
   roles?: string[];
+  phone?: string | null;
+  cpf?: string | null;
+  created_at?: string | null;
+  last_login_at?: string | null;
 }
 
 export interface UserOut {
@@ -90,6 +94,8 @@ export interface CNPJOut {
   trade_name?: string | null;
   cnpj_number: string;
   is_active: boolean;
+  unit_count: number;
+  employee_count: number;
 }
 
 export interface OrgUnitOut {
@@ -99,6 +105,7 @@ export interface OrgUnitOut {
   unit_type: string;
   parent_unit_id?: string | null;
   is_active: boolean;
+  employee_count: number;
 }
 
 export interface EmployeeOut {

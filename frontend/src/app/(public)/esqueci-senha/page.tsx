@@ -78,7 +78,7 @@ export default function EsqueciSenhaPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <BrandLogo size="lg" />
+            <BrandLogo className="scale-125" />
           </div>
           <CardTitle>Esqueceu sua senha?</CardTitle>
           <CardDescription>

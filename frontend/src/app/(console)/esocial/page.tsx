@@ -205,7 +205,7 @@ export default function ESocialPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="eSocial SST (assistido)" subtitle="Cadastre bases e exporte JSON para integração (S-2240 / S-2210 / S-2220)." />
+      <PageHeader title="eSocial SST (assistido)" description="Cadastre bases e exporte JSON para integração (S-2240 / S-2210 / S-2220)." />
 
       <Tabs defaultValue="s2240">
         <TabsList>

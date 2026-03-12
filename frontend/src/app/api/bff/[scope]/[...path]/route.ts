@@ -1,21 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 
 const BACKEND_BASE_URL = process.env.BACKEND_BASE_URL || "http://localhost:8000/api/v1";
-const COOKIE_SECURE = (process.env.COOKIE_SECURE || "false") === "true";
 
 type Scope = "public" | "console" | "employee";
 
-function getTokenForScope(scope: Scope): string | null {
-  const jar = cookies();
-  if (scope === "console") return jar.get("console_token")?.value || null;
-  if (scope === "employee") return jar.get("employee_token")?.value || null;
+function getTokenForScope(req: NextRequest, scope: Scope): string | null {
+  if (scope === "console") return req.cookies.get("console_token")?.value || null;
+  if (scope === "employee") return req.cookies.get("employee_token")?.value || null;
   return null;
 }
 
 async function proxy(req: NextRequest, params: { scope: Scope; path: string[] }) {
   const scope = params.scope;
-  const token = getTokenForScope(scope);
+  const token = getTokenForScope(req, scope);
 
   const targetPath = params.path.join("/");
   const url = new URL(req.url);

@@ -65,7 +65,7 @@ import {
   XCircle,
   Loader2,
 } from "lucide-react";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@/hooks/use-toast";
 import { apiFetch } from "@/lib/api/client";
 
 // Types
@@ -139,17 +139,17 @@ export function EnrollmentManager({
     setLoading(true);
     try {
       // Carregar estatísticas
-      const statsRes = await apiFetch("console", `/trainings/items/${itemId}/enrollment-stats`);
+      const statsRes = await apiFetch<EnrollmentStats>("console", `/trainings/items/${itemId}/enrollment-stats`);
       setStats(statsRes);
 
       // Carregar matrículas
-      const enrollRes = await apiFetch(
+      const enrollRes = await apiFetch<{ items: Enrollment[] }>(
         "console", `/trainings/items/${itemId}/enrollments?limit=100${statusFilter !== "all" ? `&status=${statusFilter}` : ""}`
       );
       setEnrollments(enrollRes.items || []);
 
       // Carregar unidades
-      const orgRes = await apiFetch("console", "/org/units");
+      const orgRes = await apiFetch<{ items: OrgUnit[] }>("console", "/org/units");
       setOrgUnits(orgRes.items || []);
     } catch (error) {
       toast({
@@ -190,7 +190,7 @@ export function EnrollmentManager({
         payload.org_unit_id = selectedOrgUnit;
       }
 
-      const result = await apiFetch("console", `/trainings/items/${itemId}/enrollments`, {
+      const result = await apiFetch<{ enrolled: number; already_enrolled: number }>("console", `/trainings/items/${itemId}/enrollments`, {
         method: "POST",
         body: JSON.stringify(payload),
       });
@@ -289,7 +289,7 @@ export function EnrollmentManager({
     const variants: Record<string, any> = {
       pending: { variant: "secondary", label: "Pendente", icon: Clock },
       in_progress: { variant: "default", label: "Em Andamento", icon: RefreshCw },
-      completed: { variant: "success", label: "Concluído", icon: CheckCircle2 },
+      completed: { variant: "default", label: "Concluído", icon: CheckCircle2 },
       expired: { variant: "destructive", label: "Expirado", icon: XCircle },
       cancelled: { variant: "outline", label: "Cancelado", icon: XCircle },
     };
@@ -518,7 +518,7 @@ export function EnrollmentManager({
                         </TableCell>
                         <TableCell>
                           {enrollment.certificate_id ? (
-                            <Badge variant="success" className="gap-1">
+                            <Badge variant="default" className="gap-1 bg-green-600">
                               <Award className="h-3 w-3" />
                               Emitido
                             </Badge>

@@ -461,7 +461,7 @@ export default function ColaboradoresPage() {
     setEditIdentifier(row.identifier);
     setEditFullName(row.full_name || "");
     setEditOrgUnitId(row.org_unit_id || "");
-    setEditIsActive(row.is_active);
+    setEditIsActive(row.is_active ?? false);
     setEditOpen(true);
   }
 

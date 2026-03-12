@@ -4,6 +4,7 @@ from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.api.deps import (
@@ -17,6 +18,7 @@ from app.core.errors import BadRequest, Conflict, Forbidden, NotFound
 from app.core.rbac import ROLE_OWNER, ROLE_TENANT_ADMIN, ROLE_CNPJ_MANAGER, ROLE_UNIT_MANAGER
 from app.core.validators import only_digits, is_valid_cnpj
 from app.db.session import get_db
+from app.models.employee import Employee
 from app.models.org import CNPJ, OrgUnit
 from app.schemas.org import CNPJCreate, CNPJOut, CNPJUpdate, OrgUnitCreate, OrgUnitOut, OrgUnitUpdate
 from app.services.plan_limits import enforce_limit
@@ -28,6 +30,41 @@ router = APIRouter(prefix="/org")
 def _assert_tenant_admin(scope) -> None:
     if not scope.is_tenant_admin:
         raise Forbidden("Somente TENANT_ADMIN pode executar esta operação")
+
+
+def _cnpj_out(db: Session, r: CNPJ, tenant_id: UUID) -> CNPJOut:
+    # Units belonging to this CNPJ
+    unit_ids_q = db.query(OrgUnit.id).filter(
+        OrgUnit.tenant_id == tenant_id, OrgUnit.cnpj_id == r.id, OrgUnit.is_active == True
+    )
+    unit_count = unit_ids_q.count()
+
+    # Employees: directly linked via cnpj_id OR via org_unit belonging to this CNPJ
+    from sqlalchemy import or_
+    emp_count = db.query(func.count(Employee.id)).filter(
+        Employee.tenant_id == tenant_id,
+        Employee.is_active == True,
+        or_(
+            Employee.cnpj_id == r.id,
+            Employee.org_unit_id.in_(unit_ids_q.subquery().select()),
+        ),
+    ).scalar() or 0
+    return CNPJOut(
+        id=r.id, legal_name=r.legal_name, trade_name=r.trade_name,
+        cnpj_number=r.cnpj_number, is_active=r.is_active,
+        unit_count=unit_count, employee_count=emp_count,
+    )
+
+
+def _unit_out(db: Session, r: OrgUnit, tenant_id: UUID) -> OrgUnitOut:
+    emp_count = db.query(func.count(Employee.id)).filter(
+        Employee.tenant_id == tenant_id, Employee.org_unit_id == r.id, Employee.is_active == True
+    ).scalar() or 0
+    return OrgUnitOut(
+        id=r.id, cnpj_id=r.cnpj_id, name=r.name, unit_type=r.unit_type,
+        parent_unit_id=r.parent_unit_id, is_active=r.is_active,
+        employee_count=emp_count,
+    )
 
 
 @router.post("/cnpjs", response_model=CNPJOut)
@@ -79,7 +116,7 @@ def create_cnpj(
     )
     db.commit()
     db.refresh(cnpj)
-    return CNPJOut(id=cnpj.id, legal_name=cnpj.legal_name, trade_name=cnpj.trade_name, cnpj_number=cnpj.cnpj_number, is_active=cnpj.is_active)
+    return _cnpj_out(db, cnpj, tenant_id)
 
 
 @router.get("/cnpjs", response_model=list[CNPJOut])
@@ -101,10 +138,7 @@ def list_cnpjs(
             return []
 
     rows = q.order_by(CNPJ.legal_name.asc()).all()
-    return [
-        CNPJOut(id=r.id, legal_name=r.legal_name, trade_name=r.trade_name, cnpj_number=r.cnpj_number, is_active=r.is_active)
-        for r in rows
-    ]
+    return [_cnpj_out(db, r, tenant_id) for r in rows]
 
 
 @router.get("/cnpjs/{cnpj_id}", response_model=CNPJOut)
@@ -119,7 +153,7 @@ def get_cnpj(
     r = db.query(CNPJ).filter(CNPJ.id == cnpj_id, CNPJ.tenant_id == tenant_id).first()
     if not r:
         raise NotFound("CNPJ não encontrado")
-    return CNPJOut(id=r.id, legal_name=r.legal_name, trade_name=r.trade_name, cnpj_number=r.cnpj_number, is_active=r.is_active)
+    return _cnpj_out(db, r, tenant_id)
 
 
 @router.patch("/cnpjs/{cnpj_id}", response_model=CNPJOut)
@@ -185,7 +219,7 @@ def update_cnpj(
     db.add(r)
     db.commit()
     db.refresh(r)
-    return CNPJOut(id=r.id, legal_name=r.legal_name, trade_name=r.trade_name, cnpj_number=r.cnpj_number, is_active=r.is_active)
+    return _cnpj_out(db, r, tenant_id)
 
 
 @router.post("/units", response_model=OrgUnitOut)
@@ -240,14 +274,7 @@ def create_unit(
     )
     db.commit()
     db.refresh(unit)
-    return OrgUnitOut(
-        id=unit.id,
-        cnpj_id=unit.cnpj_id,
-        name=unit.name,
-        unit_type=unit.unit_type,
-        parent_unit_id=unit.parent_unit_id,
-        is_active=unit.is_active,
-    )
+    return _unit_out(db, unit, tenant_id)
 
 
 @router.get("/units", response_model=list[OrgUnitOut])
@@ -273,17 +300,7 @@ def list_units(
         q = q.filter(OrgUnit.cnpj_id == cnpj_id)
 
     rows = q.order_by(OrgUnit.name.asc()).all()
-    return [
-        OrgUnitOut(
-            id=r.id,
-            cnpj_id=r.cnpj_id,
-            name=r.name,
-            unit_type=r.unit_type,
-            parent_unit_id=r.parent_unit_id,
-            is_active=r.is_active,
-        )
-        for r in rows
-    ]
+    return [_unit_out(db, r, tenant_id) for r in rows]
 
 
 @router.get("/units/{unit_id}", response_model=OrgUnitOut)
@@ -298,14 +315,7 @@ def get_unit(
     r = db.query(OrgUnit).filter(OrgUnit.id == unit_id, OrgUnit.tenant_id == tenant_id).first()
     if not r:
         raise NotFound("Unidade/Setor não encontrado")
-    return OrgUnitOut(
-        id=r.id,
-        cnpj_id=r.cnpj_id,
-        name=r.name,
-        unit_type=r.unit_type,
-        parent_unit_id=r.parent_unit_id,
-        is_active=r.is_active,
-    )
+    return _unit_out(db, r, tenant_id)
 
 
 @router.patch("/units/{unit_id}", response_model=OrgUnitOut)
@@ -367,12 +377,4 @@ def update_unit(
     db.add(r)
     db.commit()
     db.refresh(r)
-
-    return OrgUnitOut(
-        id=r.id,
-        cnpj_id=r.cnpj_id,
-        name=r.name,
-        unit_type=r.unit_type,
-        parent_unit_id=r.parent_unit_id,
-        is_active=r.is_active,
-    )
+    return _unit_out(db, r, tenant_id)

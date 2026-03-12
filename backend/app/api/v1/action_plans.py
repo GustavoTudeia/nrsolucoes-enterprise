@@ -10,6 +10,7 @@ Endpoints para:
 
 from __future__ import annotations
 
+import logging
 from datetime import datetime, timedelta
 from typing import Optional, List
 from uuid import UUID
@@ -57,6 +58,10 @@ from app.schemas.action_plan import (
     ActionPlanDashboard,
 )
 from app.schemas.common import Page
+from app.schemas.training import TargetType
+from app.services.enrollment_service import EnrollmentService
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/action-plans")
 
@@ -192,6 +197,22 @@ def _item_out(
         history=history,
         evidence_count=len(item.evidences) if item.evidences else 0,
         comment_count=len(item.comments) if item.comments else 0,
+        # NR-1 Compliance fields
+        control_hierarchy=getattr(item, "control_hierarchy", None),
+        training_type=getattr(item, "training_type", None),
+        effectiveness_criteria=getattr(item, "effectiveness_criteria", None),
+        monitoring_frequency=getattr(item, "monitoring_frequency", None),
+        affected_workers_count=getattr(item, "affected_workers_count", None),
+        # Enrollment targeting & stats
+        target_type=getattr(item, "target_type", None),
+        target_org_unit_id=getattr(item, "target_org_unit_id", None),
+        target_cnpj_id=getattr(item, "target_cnpj_id", None),
+        auto_enroll=getattr(item, "auto_enroll", True),
+        enrollment_due_days=getattr(item, "enrollment_due_days", 30),
+        enrollment_total=getattr(item, "enrollment_total", 0),
+        enrollment_completed=getattr(item, "enrollment_completed", 0),
+        enrollment_in_progress=getattr(item, "enrollment_in_progress", 0),
+        enrollment_pending=getattr(item, "enrollment_pending", 0),
     )
 
 
@@ -717,6 +738,27 @@ def add_item(
         if not resp_user:
             raise BadRequest("Usuário responsável não encontrado")
 
+    # Validar education_ref_type para itens educativos
+    if (
+        payload.item_type == "educational"
+        and payload.education_ref_id
+        and payload.education_ref_type not in ("content_item", "learning_path")
+    ):
+        raise BadRequest(
+            "education_ref_type deve ser 'content_item' ou 'learning_path' "
+            "quando education_ref_id é fornecido para item educativo"
+        )
+
+    # Validar targeting
+    if payload.target_type == "org_unit" and not payload.target_org_unit_id:
+        raise BadRequest(
+            "target_org_unit_id é obrigatório quando target_type é 'org_unit'"
+        )
+    if payload.target_type == "cnpj" and not payload.target_cnpj_id:
+        raise BadRequest(
+            "target_cnpj_id é obrigatório quando target_type é 'cnpj'"
+        )
+
     item = ActionItem(
         tenant_id=tenant_id,
         action_plan_id=plan.id,
@@ -734,6 +776,18 @@ def add_item(
         notify_on_assignment=payload.notify_on_assignment,
         notify_before_due=payload.notify_before_due,
         notify_days_before=payload.notify_days_before,
+        # NR-1 Compliance
+        control_hierarchy=payload.control_hierarchy,
+        training_type=payload.training_type,
+        effectiveness_criteria=payload.effectiveness_criteria,
+        monitoring_frequency=payload.monitoring_frequency,
+        affected_workers_count=payload.affected_workers_count,
+        # Enrollment targeting
+        target_type=payload.target_type,
+        target_org_unit_id=payload.target_org_unit_id,
+        target_cnpj_id=payload.target_cnpj_id,
+        auto_enroll=payload.auto_enroll,
+        enrollment_due_days=payload.enrollment_due_days,
         created_by_user_id=user.id,
     )
     db.add(item)
@@ -763,9 +817,83 @@ def add_item(
     )
     db.commit()
 
+    # Auto-enrollment for educational items
+    auto_enroll_result = None
+    if (
+        item.item_type == "educational"
+        and item.education_ref_id
+        and item.auto_enroll
+        and item.target_type
+    ):
+        try:
+            enrollment_svc = EnrollmentService(db)
+
+            # Map target_type string to TargetType enum
+            target_type_map = {
+                "all_employees": TargetType.ALL_EMPLOYEES,
+                "org_unit": TargetType.ORG_UNIT,
+                "cnpj": TargetType.CNPJ,
+                "selected": TargetType.SELECTED,
+            }
+            target_enum = target_type_map.get(item.target_type)
+
+            if target_enum:
+                # For CNPJ targeting, resolve employees via cnpj_id on Employee
+                org_unit_id_param = item.target_org_unit_id
+                employee_ids_param = None
+
+                if target_enum == TargetType.CNPJ and item.target_cnpj_id:
+                    # EnrollmentService doesn't handle CNPJ natively;
+                    # resolve to employee IDs and use SELECTED target
+                    from app.models.employee import Employee
+
+                    cnpj_employees = (
+                        db.query(Employee.id)
+                        .filter(
+                            Employee.tenant_id == tenant_id,
+                            Employee.cnpj_id == item.target_cnpj_id,
+                            Employee.is_active == True,
+                        )
+                        .all()
+                    )
+                    employee_ids_param = [e.id for e in cnpj_employees]
+                    target_enum = TargetType.SELECTED
+
+                enrolled, already_enrolled = enrollment_svc.bulk_enroll(
+                    action_item=item,
+                    target_type=target_enum,
+                    org_unit_id=org_unit_id_param,
+                    employee_ids=employee_ids_param,
+                    due_days=item.enrollment_due_days,
+                    enrolled_by_user_id=user.id,
+                )
+                db.flush()
+
+                # Update enrollment stats on the item
+                stats = enrollment_svc.get_enrollment_stats(item.id, tenant_id)
+                item.enrollment_total = stats.total
+                item.enrollment_completed = stats.completed
+                item.enrollment_in_progress = stats.in_progress
+                item.enrollment_pending = stats.pending
+                db.commit()
+
+                auto_enroll_result = {
+                    "enrolled": enrolled,
+                    "already_enrolled": already_enrolled,
+                }
+        except Exception:
+            logger.exception(
+                "Auto-enrollment failed for action item %s", item.id
+            )
+            # Enrollment failure must not prevent item creation;
+            # the item is already committed above.
+
     # TODO: Enviar notificação se notify_on_assignment e responsible_user_id
 
-    return {"id": str(item.id)}
+    result: dict = {"id": str(item.id)}
+    if auto_enroll_result is not None:
+        result["auto_enroll_result"] = auto_enroll_result
+    return result
 
 
 @router.get("/items/{item_id}", response_model=ActionItemOut)
@@ -887,7 +1015,76 @@ def update_item(
         )
     )
     db.commit()
-    return {"id": str(item.id)}
+
+    # Auto-enrollment on update for educational items
+    auto_enroll_result = None
+    if (
+        item.item_type == "educational"
+        and item.education_ref_id
+        and item.auto_enroll
+        and item.target_type
+    ):
+        try:
+            enrollment_svc = EnrollmentService(db)
+
+            target_type_map = {
+                "all_employees": TargetType.ALL_EMPLOYEES,
+                "org_unit": TargetType.ORG_UNIT,
+                "cnpj": TargetType.CNPJ,
+                "selected": TargetType.SELECTED,
+            }
+            target_enum = target_type_map.get(item.target_type)
+
+            if target_enum:
+                org_unit_id_param = item.target_org_unit_id
+                employee_ids_param = None
+
+                if target_enum == TargetType.CNPJ and item.target_cnpj_id:
+                    from app.models.employee import Employee
+
+                    cnpj_employees = (
+                        db.query(Employee.id)
+                        .filter(
+                            Employee.tenant_id == tenant_id,
+                            Employee.cnpj_id == item.target_cnpj_id,
+                            Employee.is_active == True,
+                        )
+                        .all()
+                    )
+                    employee_ids_param = [e.id for e in cnpj_employees]
+                    target_enum = TargetType.SELECTED
+
+                enrolled, already_enrolled = enrollment_svc.bulk_enroll(
+                    action_item=item,
+                    target_type=target_enum,
+                    org_unit_id=org_unit_id_param,
+                    employee_ids=employee_ids_param,
+                    due_days=item.enrollment_due_days or 30,
+                    enrolled_by_user_id=user.id,
+                )
+                db.flush()
+
+                if enrolled > 0:
+                    stats = enrollment_svc.get_enrollment_stats(item.id, tenant_id)
+                    item.enrollment_total = stats.total
+                    item.enrollment_completed = stats.completed
+                    item.enrollment_in_progress = stats.in_progress
+                    item.enrollment_pending = stats.pending
+                    db.commit()
+
+                auto_enroll_result = {
+                    "enrolled": enrolled,
+                    "already_enrolled": already_enrolled,
+                }
+        except Exception:
+            logger.exception(
+                "Auto-enrollment on update failed for action item %s", item.id
+            )
+
+    result: dict = {"id": str(item.id)}
+    if auto_enroll_result is not None:
+        result["auto_enroll_result"] = auto_enroll_result
+    return result
 
 
 @router.delete("/items/{item_id}", response_model=dict)

@@ -1,9 +1,9 @@
 import Link from "next/link";
-import { ArrowRight, Menu } from "lucide-react";
+import { ArrowRight, Menu, Shield } from "lucide-react";
 import { BrandLogo } from "@/components/brand/logo";
 import { ModeToggle } from "@/components/mode-toggle";
 import { Button } from "@/components/ui/button";
-import { NAV_PUBLIC } from "@/config/brand";
+import { NAV_PUBLIC, SOCIAL_PROOF } from "@/config/brand";
 
 export default function PublicLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -90,64 +90,73 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
       <main className="relative">{children}</main>
 
       <footer className="border-t bg-background/60">
-        <div className="container grid gap-10 py-12 md:grid-cols-4">
-          <div className="md:col-span-2">
+        {/* Trust badges bar */}
+        <div className="border-b">
+          <div className="container flex flex-wrap items-center justify-center gap-x-6 gap-y-2 py-4">
+            {SOCIAL_PROOF.trustBadges.map((badge) => (
+              <div key={badge} className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <Shield className="h-3 w-3 text-primary" />
+                <span>{badge}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="container grid gap-10 py-12 md:grid-cols-12">
+          <div className="md:col-span-4">
             <BrandLogo linked={false} />
             <p className="mt-4 max-w-md text-sm text-muted-foreground">
-              Plataforma enterprise para suportar a gestão de riscos psicossociais (NR-1), com rastreabilidade, evidências
+              Plataforma enterprise para gestão de riscos psicossociais (NR-1), com rastreabilidade, evidências
               e governança. Projetada para empresas com múltiplos CNPJs e operações distribuídas no Brasil.
             </p>
-
+            <div className="mt-4 flex flex-wrap gap-2">
+              {SOCIAL_PROOF.metrics.map((m) => (
+                <div key={m.label} className="rounded-lg border bg-muted/50 px-3 py-1.5">
+                  <div className="text-sm font-bold text-foreground">{m.value}</div>
+                  <div className="text-[10px] text-muted-foreground">{m.label}</div>
+                </div>
+              ))}
+            </div>
             <p className="mt-4 text-xs text-muted-foreground">
               <span className="font-medium text-foreground">Aviso:</span> NR-1 é uma norma regulamentadora. Esta
               plataforma não é afiliada, endossada ou certificada por órgãos governamentais.
             </p>
           </div>
 
-          <div>
+          <div className="md:col-span-2">
             <div className="text-sm font-semibold">Produto</div>
             <ul className="mt-3 space-y-2 text-sm">
-              <li>
-                <Link className="text-muted-foreground no-underline hover:text-foreground" href="/recursos">
-                  Recursos
-                </Link>
-              </li>
-              <li>
-                <Link className="text-muted-foreground no-underline hover:text-foreground" href="/planos">
-                  Planos
-                </Link>
-              </li>
-              <li>
-                <Link className="text-muted-foreground no-underline hover:text-foreground" href="/login">
-                  Acesso ao console
-                </Link>
-              </li>
+              <li><Link className="text-muted-foreground no-underline hover:text-foreground" href="/recursos">Recursos</Link></li>
+              <li><Link className="text-muted-foreground no-underline hover:text-foreground" href="/planos">Planos e preços</Link></li>
+              <li><Link className="text-muted-foreground no-underline hover:text-foreground" href="/certificado/validar">Validar certificado</Link></li>
+              <li><Link className="text-muted-foreground no-underline hover:text-foreground" href="/login">Acesso ao console</Link></li>
             </ul>
           </div>
 
-          <div>
+          <div className="md:col-span-2">
             <div className="text-sm font-semibold">Empresa</div>
             <ul className="mt-3 space-y-2 text-sm">
-              <li>
-                <Link className="text-muted-foreground no-underline hover:text-foreground" href="/sobre">
-                  Sobre
-                </Link>
-              </li>
-              <li>
-                <Link className="text-muted-foreground no-underline hover:text-foreground" href="/contato">
-                  Fale com a equipe
-                </Link>
-              </li>
-              <li>
-                <Link className="text-muted-foreground no-underline hover:text-foreground" href="/termos">
-                  Termos
-                </Link>
-              </li>
-              <li>
-                <Link className="text-muted-foreground no-underline hover:text-foreground" href="/privacidade">
-                  Privacidade
-                </Link>
-              </li>
+              <li><Link className="text-muted-foreground no-underline hover:text-foreground" href="/sobre">Sobre nós</Link></li>
+              <li><Link className="text-muted-foreground no-underline hover:text-foreground" href="/contato">Fale com a equipe</Link></li>
+            </ul>
+          </div>
+
+          <div className="md:col-span-2">
+            <div className="text-sm font-semibold">Legal</div>
+            <ul className="mt-3 space-y-2 text-sm">
+              <li><Link className="text-muted-foreground no-underline hover:text-foreground" href="/termos">Termos de uso</Link></li>
+              <li><Link className="text-muted-foreground no-underline hover:text-foreground" href="/privacidade">Privacidade</Link></li>
+              <li><Link className="text-muted-foreground no-underline hover:text-foreground" href="/lgpd">Política LGPD</Link></li>
+            </ul>
+          </div>
+
+          <div className="md:col-span-2">
+            <div className="text-sm font-semibold">Segurança</div>
+            <ul className="mt-3 space-y-2 text-sm text-muted-foreground">
+              <li className="flex items-center gap-1.5"><Shield className="h-3 w-3 text-green-500" /> Dados criptografados</li>
+              <li className="flex items-center gap-1.5"><Shield className="h-3 w-3 text-green-500" /> Isolamento por tenant</li>
+              <li className="flex items-center gap-1.5"><Shield className="h-3 w-3 text-green-500" /> Backup automático</li>
+              <li className="flex items-center gap-1.5"><Shield className="h-3 w-3 text-green-500" /> Logs de auditoria</li>
             </ul>
           </div>
         </div>
@@ -155,7 +164,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
         <div className="border-t">
           <div className="container flex flex-col gap-2 py-6 text-xs text-muted-foreground md:flex-row md:items-center md:justify-between">
             <span>© {new Date().getFullYear()} NR1 Soluções. Todos os direitos reservados.</span>
-            <span>Feito para alta confiabilidade, acessibilidade e governança.</span>
+            <span>Plataforma enterprise para alta confiabilidade, acessibilidade e governança corporativa.</span>
           </div>
         </div>
       </footer>

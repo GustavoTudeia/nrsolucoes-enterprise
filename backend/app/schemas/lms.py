@@ -15,6 +15,14 @@ class ContentCreate(BaseModel):
     is_platform_managed: bool = False
 
 
+class ContentUpdate(BaseModel):
+    title: Optional[str] = Field(default=None, min_length=2, max_length=200)
+    description: Optional[str] = Field(default=None, max_length=500)
+    url: Optional[str] = None
+    duration_minutes: Optional[int] = None
+    is_active: Optional[bool] = None
+
+
 class ContentUploadCreate(BaseModel):
     title: str = Field(..., min_length=2, max_length=200)
     description: Optional[str] = Field(default=None, max_length=500)
@@ -49,11 +57,46 @@ class ContentOut(BaseModel):
     is_active: bool
 
 
+class LearningPathCreate(BaseModel):
+    title: str = Field(..., min_length=2, max_length=200)
+    description: Optional[str] = Field(default=None, max_length=500)
+    content_item_ids: list[UUID] = Field(default_factory=list, description="Ordered list of content IDs")
+
+
+class LearningPathUpdate(BaseModel):
+    title: Optional[str] = Field(default=None, min_length=2, max_length=200)
+    description: Optional[str] = Field(default=None, max_length=500)
+    content_item_ids: Optional[list[UUID]] = None
+
+
+class LearningPathItemOut(BaseModel):
+    id: UUID
+    content_item_id: UUID
+    order_index: int
+    content_title: Optional[str] = None
+
+
+class LearningPathOut(BaseModel):
+    id: UUID
+    tenant_id: Optional[UUID] = None
+    title: str
+    description: Optional[str] = None
+    is_platform_managed: bool
+    is_active: bool = True
+    items: list[LearningPathItemOut] = Field(default_factory=list)
+    created_at: datetime
+
+
 class AssignmentCreate(BaseModel):
     content_item_id: Optional[UUID] = None
     learning_path_id: Optional[UUID] = None
     employee_id: Optional[UUID] = None
     org_unit_id: Optional[UUID] = None
+
+
+class AssignmentUpdate(BaseModel):
+    due_at: Optional[datetime] = None
+    status: Optional[str] = None
 
 
 class AssignmentOut(BaseModel):
@@ -69,6 +112,13 @@ class AssignmentOut(BaseModel):
     progress_seconds: Optional[int] = None
     duration_seconds: Optional[int] = None
     completed_at: Optional[datetime] = None
+
+
+class BulkAssignmentCreate(BaseModel):
+    content_item_id: Optional[UUID] = None
+    learning_path_id: Optional[UUID] = None
+    employee_ids: Optional[list[UUID]] = Field(default=None)
+    org_unit_ids: Optional[list[UUID]] = Field(default=None)
 
 
 class CompletionCreate(BaseModel):
@@ -88,3 +138,13 @@ class ProgressOut(BaseModel):
     position_seconds: int
     duration_seconds: Optional[int] = None
     last_event_at: datetime
+
+
+class LMSStatsOut(BaseModel):
+    total_contents: int = 0
+    total_assignments: int = 0
+    total_completed: int = 0
+    total_in_progress: int = 0
+    completion_rate: float = 0.0
+    contents_by_type: dict[str, int] = Field(default_factory=dict)
+    assignments_by_status: dict[str, int] = Field(default_factory=dict)

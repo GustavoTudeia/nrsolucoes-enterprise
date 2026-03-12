@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 
 const BACKEND_BASE_URL = process.env.BACKEND_BASE_URL || "http://localhost:8000/api/v1";
 const COOKIE_SECURE = (process.env.COOKIE_SECURE || "false") === "true";
@@ -18,9 +17,11 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(data, { status: upstream.status });
   }
 
+  const response = NextResponse.json(data, { status: 200 });
+
   const token = data?.access_token;
   if (token) {
-    cookies().set("console_token", token, {
+    response.cookies.set("console_token", token, {
       httpOnly: true,
       secure: COOKIE_SECURE,
       sameSite: "lax",
@@ -28,5 +29,5 @@ export async function POST(req: NextRequest) {
     });
   }
 
-  return NextResponse.json(data, { status: 200 });
+  return response;
 }

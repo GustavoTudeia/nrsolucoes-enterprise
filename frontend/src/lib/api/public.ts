@@ -20,6 +20,9 @@ export async function publicSignup(payload: {
   admin_name?: string;
   admin_password: string;
   affiliate_code?: string;
+  cnpj?: string;
+  admin_cpf?: string;
+  admin_phone?: string;
 }) {
   // via Next route handler (sets console token)
   const res = await fetch("/api/auth/public/signup", {
@@ -50,6 +53,6 @@ export async function getPublicCampaign(campaignId: string) {
 export async function submitSurveyResponse(campaignId: string, payload: { org_unit_id?: string; answers: Record<string, any> }) {
   return apiFetch<{ status: string }>("public", `/campaigns/${encodeURIComponent(campaignId)}/responses`, {
     method: "POST",
-    body: payload,
+    body: JSON.stringify(payload),
   });
 }

@@ -22,6 +22,16 @@ export async function upsertProgress(payload: { assignment_id: string; position_
   return apiFetch<ProgressOut>("employee", "/employee/progress", { method: "POST", body: JSON.stringify(payload) });
 }
 
+export async function consumeMagicToken(token: string) {
+  const res = await fetch(`/api/auth/employee/magic/${encodeURIComponent(token)}`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.detail || "Link inválido ou expirado");
+  return data;
+}
+
 export async function otpStart(payload: { tenant_id: string; identifier: string }) {
   const res = await fetch("/api/auth/employee/otp/start", {
     method: "POST",

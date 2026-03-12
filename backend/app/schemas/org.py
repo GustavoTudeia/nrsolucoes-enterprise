@@ -24,6 +24,8 @@ class CNPJOut(BaseModel):
     trade_name: Optional[str] = None
     cnpj_number: str
     is_active: bool
+    unit_count: int = 0
+    employee_count: int = 0
 
 
 class OrgUnitCreate(BaseModel):
@@ -47,3 +49,4 @@ class OrgUnitOut(BaseModel):
     unit_type: str
     parent_unit_id: Optional[UUID] = None
     is_active: bool
+    employee_count: int = 0

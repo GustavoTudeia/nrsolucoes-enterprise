@@ -62,6 +62,7 @@ from app.schemas.training import (
     TargetType,
     CertificateOut,
     CertificateValidation,
+    CertificateGeneratePayload,
     ActionItemWithEnrollments,
 )
 from app.schemas.common import Page
@@ -548,6 +549,12 @@ def list_certificates(
             pdf_available=cert.pdf_storage_key is not None,
             issuer_name=cert.issuer_name,
             issuer_cnpj=cert.issuer_cnpj,
+            instructor_name=cert.instructor_name,
+            instructor_qualification=cert.instructor_qualification,
+            training_location=cert.training_location,
+            syllabus=cert.syllabus,
+            training_modality=cert.training_modality,
+            formal_hours_minutes=cert.formal_hours_minutes,
             created_at=cert.created_at,
         )
         for cert in certificates
@@ -602,6 +609,12 @@ def get_certificate(
         pdf_available=cert.pdf_storage_key is not None,
         issuer_name=cert.issuer_name,
         issuer_cnpj=cert.issuer_cnpj,
+        instructor_name=cert.instructor_name,
+        instructor_qualification=cert.instructor_qualification,
+        training_location=cert.training_location,
+        syllabus=cert.syllabus,
+        training_modality=cert.training_modality,
+        formal_hours_minutes=cert.formal_hours_minutes,
         created_at=cert.created_at,
     )
 
@@ -820,12 +833,16 @@ def get_training_report(
 @router.post("/items/{item_id}/certificates/generate", response_model=dict)
 def generate_certificates_for_item(
     item_id: UUID,
+    payload: CertificateGeneratePayload = CertificateGeneratePayload(),
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
     tenant_id: UUID = Depends(tenant_id_from_user),
     meta: dict = Depends(get_request_meta),
 ):
-    """Gera certificados para todas as matrículas concluídas sem certificado."""
+    """Gera certificados para todas as matrículas concluídas sem certificado.
+
+    Aceita metadados NR-1 opcionais que serão aplicados a todos os certificados gerados.
+    """
     from app.services.certificate_service import CertificateService
 
     print(f"[CERT] Iniciando geração para item {item_id}, tenant {tenant_id}")
@@ -843,16 +860,20 @@ def generate_certificates_for_item(
     print(f"[CERT] Item encontrado: {item.title}")
 
     # Buscar matrículas concluídas sem certificado
-    enrollments = (
-        db.query(ActionItemEnrollment)
-        .filter(
-            ActionItemEnrollment.action_item_id == item_id,
-            ActionItemEnrollment.tenant_id == tenant_id,
-            ActionItemEnrollment.status == "completed",
-            ActionItemEnrollment.certificate_id.is_(None),
-        )
-        .all()
+    query = db.query(ActionItemEnrollment).filter(
+        ActionItemEnrollment.action_item_id == item_id,
+        ActionItemEnrollment.tenant_id == tenant_id,
+        ActionItemEnrollment.status == "completed",
+        ActionItemEnrollment.certificate_id.is_(None),
     )
+
+    # Filtrar por enrollment_ids se fornecido
+    if payload.enrollment_ids:
+        query = query.filter(
+            ActionItemEnrollment.id.in_(payload.enrollment_ids)
+        )
+
+    enrollments = query.all()
 
     print(f"[CERT] Matrículas elegíveis encontradas: {len(enrollments)}")
 
@@ -872,7 +893,20 @@ def generate_certificates_for_item(
             "message": "Nenhuma matrícula elegível para certificado",
         }
 
-    # ... resto do código continua igual
+    # Extrair metadados NR-1 do payload
+    nr1_kwargs = {}
+    if payload.instructor_name is not None:
+        nr1_kwargs["instructor_name"] = payload.instructor_name
+    if payload.instructor_qualification is not None:
+        nr1_kwargs["instructor_qualification"] = payload.instructor_qualification
+    if payload.training_location is not None:
+        nr1_kwargs["training_location"] = payload.training_location
+    if payload.syllabus is not None:
+        nr1_kwargs["syllabus"] = payload.syllabus
+    if payload.training_modality is not None:
+        nr1_kwargs["training_modality"] = payload.training_modality
+    if payload.formal_hours_minutes is not None:
+        nr1_kwargs["formal_hours_minutes"] = payload.formal_hours_minutes
 
     cert_service = CertificateService(db)
     generated = 0
@@ -883,8 +917,11 @@ def generate_certificates_for_item(
         try:
             print(f"[CERT] Processando matrícula {enrollment.id}...")
 
-            # Criar certificado
-            certificate = cert_service.create_certificate(enrollment=enrollment)
+            # Criar certificado com metadados NR-1
+            certificate = cert_service.create_certificate(
+                enrollment=enrollment,
+                **nr1_kwargs,
+            )
             print(f"[CERT] Certificado criado: {certificate.certificate_number}")
 
             # Gerar e salvar PDF

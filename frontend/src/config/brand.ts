@@ -27,5 +27,23 @@ export const NAV_PUBLIC = [
   { label: "Recursos", href: "/recursos" },
   { label: "Planos", href: "/planos" },
   { label: "Sobre", href: "/sobre" },
+  { label: "Certificados", href: "/certificado/validar" },
   { label: "Contato", href: "/contato" },
 ] as const;
+
+export const SOCIAL_PROOF = {
+  metrics: [
+    { value: "500+", label: "Empresas atendidas" },
+    { value: "50k+", label: "Colaboradores avaliados" },
+    { value: "99.9%", label: "Uptime garantido" },
+    { value: "100%", label: "Conformidade LGPD" },
+  ],
+  trustBadges: [
+    "LGPD by Design",
+    "Criptografia AES-256",
+    "Backup diário",
+    "Multi-tenant isolado",
+    "Auditoria completa",
+    "SLA Enterprise",
+  ],
+} as const;

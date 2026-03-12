@@ -146,7 +146,7 @@ export default function ResetarSenhaPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <BrandLogo size="lg" />
+            <BrandLogo className="scale-125" />
           </div>
           <CardTitle>Criar Nova Senha</CardTitle>
           <CardDescription>
