@@ -11,6 +11,7 @@ from app.api.deps import require_any_role, tenant_id_from_user, require_active_s
 from app.core.rbac import ROLE_TENANT_ADMIN, ROLE_TENANT_AUDITOR
 from app.db.session import get_db
 from app.models.audit_event import AuditEvent
+from app.models.user import User
 from app.schemas.audit import AuditEventOut
 from app.schemas.common import Page
 
@@ -53,11 +54,21 @@ def list_audit_events(
 
     total = base.count()
     rows = base.order_by(AuditEvent.created_at.desc()).offset(offset).limit(limit).all()
+
+    # Batch-load actor names to avoid N+1
+    actor_ids = {r.actor_user_id for r in rows if r.actor_user_id}
+    actor_map: dict = {}
+    if actor_ids:
+        users = db.query(User.id, User.full_name, User.email).filter(User.id.in_(list(actor_ids))).all()
+        actor_map = {u.id: (u.full_name, u.email) for u in users}
+
     items = [
         AuditEventOut(
             id=r.id,
             tenant_id=r.tenant_id,
             actor_user_id=r.actor_user_id,
+            actor_name=actor_map.get(r.actor_user_id, (None, None))[0] if r.actor_user_id else None,
+            actor_email=actor_map.get(r.actor_user_id, (None, None))[1] if r.actor_user_id else None,
             action=r.action,
             entity_type=r.entity_type,
             entity_id=r.entity_id,

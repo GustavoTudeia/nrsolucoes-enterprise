@@ -11,6 +11,8 @@ class AuditEventOut(BaseModel):
     id: UUID
     tenant_id: Optional[UUID] = None
     actor_user_id: Optional[UUID] = None
+    actor_name: Optional[str] = None
+    actor_email: Optional[str] = None
 
     action: str
     entity_type: str
