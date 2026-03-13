@@ -57,7 +57,7 @@ type NavGroup = {
 };
 
 function isActivePath(pathname: string, href: string) {
-  if (href === "/dashboard") return pathname === "/dashboard";
+  if (href === "/dashboard" || href === "/settings") return pathname === href;
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
