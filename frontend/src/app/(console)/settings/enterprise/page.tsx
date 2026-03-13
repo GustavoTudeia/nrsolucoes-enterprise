@@ -1,13 +1,15 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 
 import { useToast } from "@/hooks/use-toast";
@@ -60,6 +62,11 @@ export default function EnterpriseSettingsPage() {
   
   // Papéis que requerem seleção de CNPJ
   const rolesRequiringCnpj = ["CNPJ_MANAGER", "UNIT_MANAGER"];
+
+  // saving states
+  const [savingBranding, setSavingBranding] = useState(false);
+  const [savingPrivacy, setSavingPrivacy] = useState(false);
+  const [savingSso, setSavingSso] = useState(false);
 
   // form states
   const [minAnon, setMinAnon] = useState<string>("5");
@@ -205,6 +212,7 @@ export default function EnterpriseSettingsPage() {
 
   async function onSavePrivacy() {
     try {
+      setSavingPrivacy(true);
       const n = Number(minAnon);
       if (!Number.isFinite(n) || n < 3) {
         toast({ title: "Valor inválido", description: "min_anon_threshold deve ser >= 3" });
@@ -215,11 +223,14 @@ export default function EnterpriseSettingsPage() {
       toast({ title: "Privacidade atualizada" });
     } catch (e: any) {
       toast({ title: "Erro", description: e?.message || "" });
+    } finally {
+      setSavingPrivacy(false);
     }
   }
 
   async function onSaveBranding() {
     try {
+      setSavingBranding(true);
       const updated = await updateBrandingSettings({
         brand_name: brandName || null,
         logo_url: logoUrl || null,
@@ -233,11 +244,14 @@ export default function EnterpriseSettingsPage() {
       toast({ title: "Branding atualizado" });
     } catch (e: any) {
       toast({ title: "Erro", description: e?.message || "" });
+    } finally {
+      setSavingBranding(false);
     }
   }
 
   async function onSaveSso() {
     try {
+      setSavingSso(true);
       const domains = allowedDomainsText
         .split(/\r?\n/)
         .map((x) => x.trim())
@@ -255,6 +269,8 @@ export default function EnterpriseSettingsPage() {
       setClientSecret("");
     } catch (e: any) {
       toast({ title: "Erro", description: e?.message || "" });
+    } finally {
+      setSavingSso(false);
     }
   }
 
@@ -306,38 +322,88 @@ export default function EnterpriseSettingsPage() {
     );
   }
 
+  const brandingConfigured = !!(brandName || logoUrl || primaryColor);
+  const ssoConfigured = ssoEnabled && !!issuerUrl;
+  const legalOk = legal ? !legal.is_missing : false;
+
   return (
-    <div className="p-6 space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Settings Enterprise</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <p className="text-sm text-muted-foreground">
-            Configurações avançadas do tenant: white-label, SSO e gestão de perfis. Algumas opções dependem do plano.
+    <div className="p-6 space-y-6 max-w-[1400px] mx-auto">
+      {/* Header */}
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight">Settings Enterprise</h1>
+          <p className="text-muted-foreground text-sm mt-1">
+            Configuracoes avancadas do tenant: white-label, SSO, privacidade e gestao de perfis
           </p>
-        </CardContent>
-      </Card>
+        </div>
+        <div className="flex items-center gap-2">
+          {me?.tenant?.name && (
+            <Badge variant="outline" className="text-xs">{me.tenant.name}</Badge>
+          )}
+        </div>
+      </div>
+
+      {/* Status Cards */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+        <Card>
+          <CardContent className="pt-5 pb-4">
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Usuarios</p>
+            <p className="text-3xl font-bold mt-1 text-blue-600">{users.length}</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-5 pb-4">
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Convites</p>
+            <p className="text-3xl font-bold mt-1 text-amber-600">{invitations.length}</p>
+            <p className="text-xs text-muted-foreground mt-1">pendentes</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-5 pb-4">
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Branding</p>
+            <Badge className={`mt-2 ${brandingConfigured ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>
+              {brandingConfigured ? "Configurado" : "Padrao"}
+            </Badge>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-5 pb-4">
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">SSO</p>
+            <Badge className={`mt-2 ${ssoConfigured ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}`}>
+              {ssoConfigured ? "Ativo" : "Inativo"}
+            </Badge>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-5 pb-4">
+            <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Termos</p>
+            <Badge className={`mt-2 ${legalOk ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"}`}>
+              {legalOk ? "Aceito" : "Pendente"}
+            </Badge>
+          </CardContent>
+        </Card>
+      </div>
 
       <Tabs defaultValue="branding">
-        <TabsList>
+        <TabsList className="grid grid-cols-5 w-full max-w-3xl">
           <TabsTrigger value="branding">White-label</TabsTrigger>
           <TabsTrigger value="privacy">Privacidade</TabsTrigger>
           <TabsTrigger value="sso">SSO (OIDC)</TabsTrigger>
-          <TabsTrigger value="roles">Usuários & Perfis</TabsTrigger>
+          <TabsTrigger value="roles">Usuarios & Perfis</TabsTrigger>
           <TabsTrigger value="legal">Termos</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="branding">
+        <TabsContent value="branding" className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle>White-label / Branding</CardTitle>
+              <CardTitle className="text-base">White-label / Branding</CardTitle>
+              <CardDescription>Personalize a aparencia da plataforma para seu tenant</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Nome da marca</Label>
-                  <Input value={brandName} onChange={(e) => setBrandName(e.target.value)} placeholder="Ex: NR Soluções" />
+                  <Input value={brandName} onChange={(e) => setBrandName(e.target.value)} placeholder="Ex: NR Solucoes" />
                 </div>
                 <div className="space-y-2">
                   <Label>Email de suporte</Label>
@@ -346,28 +412,44 @@ export default function EnterpriseSettingsPage() {
                 <div className="space-y-2">
                   <Label>Logo URL</Label>
                   <Input value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://..." />
+                  {logoUrl && (
+                    <div className="h-10 w-10 rounded border bg-muted flex items-center justify-center overflow-hidden">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={logoUrl} alt="Logo preview" className="max-h-full max-w-full object-contain" onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }} />
+                    </div>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label>Background (login) URL</Label>
                   <Input value={loginBg} onChange={(e) => setLoginBg(e.target.value)} placeholder="https://..." />
                 </div>
                 <div className="space-y-2">
-                  <Label>Cor primária</Label>
-                  <Input value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} placeholder="#0f172a" />
+                  <Label>Cor primaria</Label>
+                  <div className="flex gap-2 items-center">
+                    <Input value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} placeholder="#0f172a" className="flex-1" />
+                    {primaryColor && (
+                      <div className="w-9 h-9 rounded border shrink-0" style={{ backgroundColor: primaryColor }} title={primaryColor} />
+                    )}
+                  </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Cor secundária</Label>
-                  <Input value={secondaryColor} onChange={(e) => setSecondaryColor(e.target.value)} placeholder="#22c55e" />
+                  <Label>Cor secundaria</Label>
+                  <div className="flex gap-2 items-center">
+                    <Input value={secondaryColor} onChange={(e) => setSecondaryColor(e.target.value)} placeholder="#22c55e" className="flex-1" />
+                    {secondaryColor && (
+                      <div className="w-9 h-9 rounded border shrink-0" style={{ backgroundColor: secondaryColor }} title={secondaryColor} />
+                    )}
+                  </div>
                 </div>
                 <div className="space-y-2">
-                  <Label>Domínio customizado</Label>
+                  <Label>Dominio customizado</Label>
                   <Input value={customDomain} onChange={(e) => setCustomDomain(e.target.value)} placeholder="app.empresa.com" />
                 </div>
               </div>
 
-              <div className="flex gap-2">
-                <Button onClick={onSaveBranding} disabled={loading}>
-                  Salvar branding
+              <div className="flex items-center gap-3">
+                <Button onClick={onSaveBranding} disabled={loading || savingBranding}>
+                  {savingBranding ? "Salvando..." : "Salvar branding"}
                 </Button>
                 <span className="text-xs text-muted-foreground">Requer feature WHITE_LABEL (Enterprise).</span>
               </div>
@@ -375,23 +457,25 @@ export default function EnterpriseSettingsPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="privacy">
+        <TabsContent value="privacy" className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle>Privacidade e anonimização</CardTitle>
+              <CardTitle className="text-base">Privacidade e Anonimizacao</CardTitle>
+              <CardDescription>Configuracoes de conformidade LGPD para agregacao de dados</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2 max-w-sm">
-                <Label>Limite mínimo de anonimização (min_anon_threshold)</Label>
-                <Input value={minAnon} onChange={(e) => setMinAnon(e.target.value)} />
+                <Label>Limite minimo de anonimizacao (min_anon_threshold)</Label>
+                <Input value={minAnon} onChange={(e) => setMinAnon(e.target.value)} type="number" min={3} />
                 <p className="text-xs text-muted-foreground">
-                  Define o mínimo de respostas por grupo (por unidade/setor) para liberar agregados (LGPD).
+                  Define o minimo de respostas por grupo (por unidade/setor) para liberar agregados (LGPD).
+                  Valor minimo recomendado: 5.
                 </p>
               </div>
 
-              <div className="flex gap-2">
-                <Button onClick={onSavePrivacy} disabled={loading}>
-                  Salvar privacidade
+              <div className="flex items-center gap-3">
+                <Button onClick={onSavePrivacy} disabled={loading || savingPrivacy}>
+                  {savingPrivacy ? "Salvando..." : "Salvar privacidade"}
                 </Button>
                 <span className="text-xs text-muted-foreground">Requer feature ANONYMIZATION.</span>
               </div>
@@ -399,16 +483,24 @@ export default function EnterpriseSettingsPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="sso">
+        <TabsContent value="sso" className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle>Single Sign-On (OIDC)</CardTitle>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base">Single Sign-On (OIDC)</CardTitle>
+                  <CardDescription>Autenticacao corporativa via provedor de identidade</CardDescription>
+                </div>
+                <Badge className={ssoConfigured ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" : "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-300"}>
+                  {ssoConfigured ? "Ativo" : "Inativo"}
+                </Badge>
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center gap-2">
-                <input type="checkbox" checked={ssoEnabled} onChange={(e) => setSsoEnabled(e.target.checked)} />
-                <span className="text-sm">Habilitar SSO</span>
-              </div>
+              <label className="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" checked={ssoEnabled} onChange={(e) => setSsoEnabled(e.target.checked)} className="rounded" />
+                <span className="text-sm font-medium">Habilitar SSO</span>
+              </label>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
@@ -421,45 +513,46 @@ export default function EnterpriseSettingsPage() {
                 </div>
                 <div className="space-y-2">
                   <Label>Client Secret</Label>
-                  <Input value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} placeholder={sso?.has_client_secret ? "(já configurado) - preencha para trocar" : "(não configurado)"} />
+                  <Input type="password" value={clientSecret} onChange={(e) => setClientSecret(e.target.value)} placeholder={sso?.has_client_secret ? "(ja configurado) - preencha para trocar" : "(nao configurado)"} />
                 </div>
                 <div className="space-y-2">
-                  <Label>Domínios permitidos</Label>
-                  <Textarea value={allowedDomainsText} onChange={(e) => setAllowedDomainsText(e.target.value)} placeholder="empresa.com\nsubsidiaria.com.br" />
-                  <p className="text-xs text-muted-foreground">Um domínio por linha. O login SSO seleciona o tenant pelo domínio do email.</p>
+                  <Label>Dominios permitidos</Label>
+                  <Textarea value={allowedDomainsText} onChange={(e) => setAllowedDomainsText(e.target.value)} placeholder={"empresa.com\nsubsidiaria.com.br"} />
+                  <p className="text-xs text-muted-foreground">Um dominio por linha. O login SSO seleciona o tenant pelo dominio do email.</p>
                 </div>
               </div>
 
-              <div className="flex gap-2">
-                <Button onClick={onSaveSso} disabled={loading}>
-                  Salvar SSO
+              <div className="flex items-center gap-3">
+                <Button onClick={onSaveSso} disabled={loading || savingSso}>
+                  {savingSso ? "Salvando..." : "Salvar SSO"}
                 </Button>
                 <span className="text-xs text-muted-foreground">Requer feature SSO_OIDC (Enterprise).</span>
               </div>
 
               <Separator />
 
-              <div className="text-sm space-y-1">
-                <div>
-                  <span className="font-medium">Endpoint start:</span> <code>/api/v1/auth/sso/oidc/start</code>
+              <div className="rounded-lg bg-muted/40 px-4 py-3 space-y-1">
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Endpoints de integracao</p>
+                <div className="text-sm">
+                  <span className="font-medium">Start:</span> <code className="text-xs bg-muted px-1.5 py-0.5 rounded">/api/v1/auth/sso/oidc/start</code>
                 </div>
-                <div>
-                  <span className="font-medium">Endpoint callback:</span> <code>/api/v1/auth/sso/oidc/callback</code>
+                <div className="text-sm">
+                  <span className="font-medium">Callback:</span> <code className="text-xs bg-muted px-1.5 py-0.5 rounded">/api/v1/auth/sso/oidc/callback</code>
                 </div>
               </div>
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="roles">
+        <TabsContent value="roles" className="mt-6">
           <Card>
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div>
-                  <CardTitle>Usuários & Convites</CardTitle>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Gerencie usuários e envie convites para novos membros
-                  </p>
+                  <CardTitle className="text-base">Usuarios & Convites</CardTitle>
+                  <CardDescription>
+                    Gerencie usuarios e envie convites para novos membros
+                  </CardDescription>
                 </div>
                 <Button onClick={() => setInviteModalOpen(true)}>
                   + Convidar Usuário
@@ -534,22 +627,21 @@ export default function EnterpriseSettingsPage() {
                           </div>
                         </TableCell>
                         <TableCell>
-                          <select
-                            className="border rounded px-2 py-1 text-sm"
-                            defaultValue=""
-                            onChange={(e) => {
-                              const roleKey = e.target.value;
-                              if (roleKey) onAssignRole(u.id, roleKey);
-                              e.currentTarget.value = "";
-                            }}
+                          <Select
+                            value=""
+                            onValueChange={(roleKey) => { if (roleKey) onAssignRole(u.id, roleKey); }}
                           >
-                            <option value="">+ Adicionar papel</option>
-                            {roles.filter(r => r.key !== "OWNER").map((r) => (
-                              <option key={r.key} value={r.key}>
-                                {r.name || r.key}
-                              </option>
-                            ))}
-                          </select>
+                            <SelectTrigger className="w-[180px] h-9">
+                              <SelectValue placeholder="+ Adicionar papel" />
+                            </SelectTrigger>
+                            <SelectContent>
+                              {roles.filter(r => r.key !== "OWNER").map((r) => (
+                                <SelectItem key={r.key} value={r.key}>
+                                  {r.name || r.key}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
                         </TableCell>
                       </TableRow>
                     ))}
@@ -618,43 +710,44 @@ export default function EnterpriseSettingsPage() {
                       placeholder="Nome completo"
                     />
                   </div>
-                  <div>
+                  <div className="space-y-2">
                     <Label>Papel *</Label>
-                    <select
-                      className="w-full border rounded px-3 py-2 text-sm"
+                    <Select
                       value={inviteRole}
-                      onChange={(e) => {
-                        setInviteRole(e.target.value);
-                        // Limpa CNPJ se papel não requer
-                        if (!rolesRequiringCnpj.includes(e.target.value)) {
-                          setInviteCnpjId("");
-                        }
+                      onValueChange={(v) => {
+                        setInviteRole(v);
+                        if (!rolesRequiringCnpj.includes(v)) setInviteCnpjId("");
                       }}
                     >
-                      {roles.filter(r => r.key !== "OWNER" && r.key !== "PLATFORM_SUPER_ADMIN").map((r) => (
-                        <option key={r.key} value={r.key}>
-                          {r.name || r.key}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  
-                  {/* Seletor de CNPJ - aparece só para papéis que requerem */}
-                  {rolesRequiringCnpj.includes(inviteRole) && (
-                    <div>
-                      <Label>CNPJ *</Label>
-                      <select
-                        className="w-full border rounded px-3 py-2 text-sm"
-                        value={inviteCnpjId}
-                        onChange={(e) => setInviteCnpjId(e.target.value)}
-                      >
-                        <option value="">Selecione o CNPJ...</option>
-                        {cnpjs.map((c) => (
-                          <option key={c.id} value={c.id}>
-                            {c.cnpj} - {c.legal_name}
-                          </option>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o papel" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {roles.filter(r => r.key !== "OWNER" && r.key !== "PLATFORM_SUPER_ADMIN").map((r) => (
+                          <SelectItem key={r.key} value={r.key}>
+                            {r.name || r.key}
+                          </SelectItem>
                         ))}
-                      </select>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* Seletor de CNPJ - aparece so para papeis que requerem */}
+                  {rolesRequiringCnpj.includes(inviteRole) && (
+                    <div className="space-y-2">
+                      <Label>CNPJ *</Label>
+                      <Select value={inviteCnpjId} onValueChange={setInviteCnpjId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione o CNPJ..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {cnpjs.map((c) => (
+                            <SelectItem key={c.id} value={c.id}>
+                              {c.cnpj} - {c.legal_name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                       {cnpjs.length === 0 && (
                         <p className="text-xs text-amber-600 mt-1">
                           Nenhum CNPJ cadastrado. Cadastre um CNPJ primeiro.
@@ -680,36 +773,49 @@ export default function EnterpriseSettingsPage() {
           )}
         </TabsContent>
 
-        <TabsContent value="legal">
+        <TabsContent value="legal" className="mt-6">
           <Card>
             <CardHeader>
-              <CardTitle>Termos e Política</CardTitle>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-base">Termos e Politica de Privacidade</CardTitle>
+                  <CardDescription>Aceite regulatorio obrigatorio para uso da plataforma</CardDescription>
+                </div>
+                {legal && (
+                  <Badge className={legalOk ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"}>
+                    {legalOk ? "Aceito" : "Pendente"}
+                  </Badge>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               {legal ? (
                 <>
-                  <div className="text-sm space-y-1">
-                    <div>
-                      <span className="font-medium">Versão termos:</span> {legal.required.terms_version} —{" "}
-                      <a className="underline" href={legal.required.terms_url} target="_blank" rel="noreferrer">
-                        abrir
-                      </a>
+                  <div className="rounded-lg bg-muted/40 px-4 py-3 space-y-3">
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-muted-foreground">Versao dos termos</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{legal.required.terms_version}</span>
+                        <a className="text-xs text-primary underline" href={legal.required.terms_url} target="_blank" rel="noreferrer">abrir</a>
+                      </div>
                     </div>
-                    <div>
-                      <span className="font-medium">Versão privacidade:</span> {legal.required.privacy_version} —{" "}
-                      <a className="underline" href={legal.required.privacy_url} target="_blank" rel="noreferrer">
-                        abrir
-                      </a>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-muted-foreground">Versao da privacidade</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium">{legal.required.privacy_version}</span>
+                        <a className="text-xs text-primary underline" href={legal.required.privacy_url} target="_blank" rel="noreferrer">abrir</a>
+                      </div>
                     </div>
-                    <div>
-                      <span className="font-medium">Aceito em:</span> {legal.accepted_at ? new Date(legal.accepted_at).toLocaleString() : "-"}
-                    </div>
-                    <div>
-                      <span className="font-medium">Status:</span> {legal.is_missing ? "pendente" : "ok"}
+                    <Separator />
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-muted-foreground">Aceito em</span>
+                      <span className="font-medium">{legal.accepted_at ? new Date(legal.accepted_at).toLocaleString("pt-BR") : "-"}</span>
                     </div>
                   </div>
 
-                  <Button onClick={onAcceptLegal}>Registrar aceite</Button>
+                  {legal.is_missing && (
+                    <Button onClick={onAcceptLegal}>Registrar aceite</Button>
+                  )}
                 </>
               ) : (
                 <p className="text-sm text-muted-foreground">Carregando status...</p>
