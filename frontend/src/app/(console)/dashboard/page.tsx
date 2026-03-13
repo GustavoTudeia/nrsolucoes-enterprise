@@ -50,6 +50,14 @@ export default function DashboardPage() {
   const [training, setTraining] = useState<TrainingSummaryOut | null>(null);
   const [lmsStats, setLmsStats] = useState<LMSStatsOut | null>(null);
   const [loading, setLoading] = useState(true);
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+
+  const greeting = useMemo(() => {
+    const h = new Date().getHours();
+    const name = me?.full_name?.split(" ")[0] || "";
+    const period = h < 12 ? "Bom dia" : h < 18 ? "Boa tarde" : "Boa noite";
+    return name ? `${period}, ${name}` : period;
+  }, [me?.full_name]);
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -70,6 +78,7 @@ export default function DashboardPage() {
       toast.error(e?.message || "Falha ao carregar dashboard");
     } finally {
       setLoading(false);
+      setLastRefresh(new Date());
     }
   }, []);
 
@@ -101,16 +110,23 @@ export default function DashboardPage() {
       {/* ═══════ HEADER ═══════ */}
       <div className="flex items-start justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">Painel Executivo</h1>
+          <h1 className="text-2xl font-bold tracking-tight">{greeting}</h1>
           <p className="text-muted-foreground text-sm mt-1">
             Visao consolidada do ciclo NR-1: organizacao, diagnostico, risco, plano de acao, treinamento e auditoria
           </p>
         </div>
         <div className="flex items-center gap-3">
           <Badge className={subInfo.cls}>{subInfo.label}</Badge>
-          <Button variant="outline" onClick={refresh} disabled={loading}>
-            {loading ? "Carregando..." : "Atualizar"}
-          </Button>
+          <div className="flex flex-col items-end gap-1">
+            <Button variant="outline" onClick={refresh} disabled={loading}>
+              {loading ? "Carregando..." : "Atualizar"}
+            </Button>
+            {lastRefresh && (
+              <span className="text-[10px] text-muted-foreground">
+                Atualizado as {lastRefresh.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+              </span>
+            )}
+          </div>
         </div>
       </div>
 
@@ -286,10 +302,14 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="space-y-2">
             <QuickAction href="/campanhas" label="Criar/gerenciar campanhas" desc="Inicie diagnosticos psicossociais" primary />
+            <QuickAction href="/questionarios" label="Questionarios" desc="Templates e versionamento NR-1" />
             <QuickAction href="/resultados" label="Visualizar resultados" desc="Agregacao com conformidade LGPD" />
             <QuickAction href="/mapa-de-risco" label="Mapa de Risco" desc="Classificacao por dimensao e setor" />
             <QuickAction href="/relatorios" label="Gerar Dossie PGR/PDF" desc="Relatorio completo para auditoria" />
+            <QuickAction href="/colaboradores" label="Colaboradores" desc="Gestao de pessoal e vinculos" />
             <QuickAction href="/lms" label="Gerenciar treinamentos" desc="Conteudos, trilhas e atribuicoes" />
+            <QuickAction href="/organograma" label="Organograma" desc="CNPJs, unidades e hierarquia" />
+            <QuickAction href="/esocial" label="eSocial" desc="Eventos SST S-2210, S-2220, S-2240" />
             <QuickAction href="/auditoria" label="Trilha de auditoria" desc="Log completo (retencao 20 anos)" />
           </CardContent>
         </Card>
