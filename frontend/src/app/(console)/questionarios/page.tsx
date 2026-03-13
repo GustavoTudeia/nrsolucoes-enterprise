@@ -139,6 +139,12 @@ export default function QuestionariosPage() {
     if (selectedTemplateId) refreshVersions(selectedTemplateId);
   }, [selectedTemplateId, refreshVersions]);
 
+  // Search & filters
+  const [searchTpl, setSearchTpl] = useState("");
+  const [filterOrigin, setFilterOrigin] = useState<"all" | "official" | "tenant">("all");
+  const [filterActive, setFilterActive] = useState<"all" | "active" | "inactive">("all");
+  const [filterVersionStatus, setFilterVersionStatus] = useState<"all" | "draft" | "published" | "archived">("all");
+
   // ─── Derived data ──────────────────────────────────────────────────────────
 
   const selectedTemplate = useMemo(
@@ -151,10 +157,38 @@ export default function QuestionariosPage() {
     [versions, selectedVersionId]
   );
 
+  const officialCount = useMemo(
+    () => templates.filter((t) => t.is_platform_managed).length,
+    [templates]
+  );
+
   const publishedCount = useMemo(
     () => versions.filter((v) => v.status === "published").length,
     [versions]
   );
+
+  const draftCount = useMemo(
+    () => versions.filter((v) => v.status === "draft").length,
+    [versions]
+  );
+
+  const filteredTemplates = useMemo(() => {
+    let result = templates;
+    if (searchTpl.trim()) {
+      const q = searchTpl.toLowerCase();
+      result = result.filter((t) => t.name.toLowerCase().includes(q) || t.key.toLowerCase().includes(q) || (t.description || "").toLowerCase().includes(q));
+    }
+    if (filterOrigin === "official") result = result.filter((t) => t.is_platform_managed);
+    if (filterOrigin === "tenant") result = result.filter((t) => !t.is_platform_managed);
+    if (filterActive === "active") result = result.filter((t) => t.is_active);
+    if (filterActive === "inactive") result = result.filter((t) => !t.is_active);
+    return result;
+  }, [templates, searchTpl, filterOrigin, filterActive]);
+
+  const filteredVersions = useMemo(() => {
+    if (filterVersionStatus === "all") return versions;
+    return versions.filter((v) => v.status === filterVersionStatus);
+  }, [versions, filterVersionStatus]);
 
   // ─── Actions ───────────────────────────────────────────────────────────────
 
@@ -220,10 +254,50 @@ export default function QuestionariosPage() {
     }
   }
 
+  // ─── Load version into builder ─────────────────────────────────────────────
+
+  function loadVersionIntoBuilder(version: QuestionnaireVersionDetailOut) {
+    const c = version.content;
+    if (c?.title) setTitle(c.title);
+    if (Array.isArray(c?.dimensions)) setDimensions(c.dimensions);
+    if (Array.isArray(c?.questions)) setQuestions(c.questions);
+    setActiveTab("builder");
+    toast.success(`Conteudo da v${version.version} carregado no Builder`);
+  }
+
+  // ─── Publish with confirmation ────────────────────────────────────────────
+
+  const [confirmPublishId, setConfirmPublishId] = useState<string | null>(null);
+
+  async function onConfirmPublish() {
+    if (!confirmPublishId) return;
+    await onPublish(confirmPublishId);
+    setConfirmPublishId(null);
+  }
+
   // ─── Render ────────────────────────────────────────────────────────────────
 
   return (
     <div className="p-6 space-y-6 max-w-[1400px] mx-auto">
+      {/* Publish Confirmation Dialog */}
+      {confirmPublishId && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <Card className="w-full max-w-md mx-4">
+            <CardHeader>
+              <CardTitle className="text-base">Confirmar Publicacao</CardTitle>
+              <CardDescription>
+                Publicar uma versao e irreversivel. Ela ficara disponivel para campanhas imediatamente.
+                Deseja continuar?
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setConfirmPublishId(null)}>Cancelar</Button>
+              <Button onClick={onConfirmPublish}>Sim, Publicar</Button>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -243,24 +317,28 @@ export default function QuestionariosPage() {
           <CardContent className="pt-6">
             <p className="text-sm text-muted-foreground">Templates</p>
             <p className="text-3xl font-bold mt-1 text-blue-600">{templates.length}</p>
+            <p className="text-xs text-muted-foreground mt-1">{officialCount} oficiais, {templates.length - officialCount} tenant</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">Versoes (atual)</p>
+            <p className="text-sm text-muted-foreground">Versoes</p>
             <p className="text-3xl font-bold mt-1 text-indigo-600">{versions.length}</p>
+            <p className="text-xs text-muted-foreground mt-1">{selectedTemplate ? selectedTemplate.name : "Selecione um template"}</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
             <p className="text-sm text-muted-foreground">Publicadas</p>
             <p className="text-3xl font-bold mt-1 text-green-600">{publishedCount}</p>
+            <p className="text-xs text-muted-foreground mt-1">Prontas para campanhas</p>
           </CardContent>
         </Card>
         <Card>
           <CardContent className="pt-6">
-            <p className="text-sm text-muted-foreground">Dimensoes (builder)</p>
-            <p className="text-3xl font-bold mt-1 text-amber-600">{dimensions.length}</p>
+            <p className="text-sm text-muted-foreground">Drafts pendentes</p>
+            <p className="text-3xl font-bold mt-1 text-amber-600">{draftCount}</p>
+            <p className="text-xs text-muted-foreground mt-1">Aguardando publicacao</p>
           </CardContent>
         </Card>
       </div>
@@ -331,7 +409,8 @@ export default function QuestionariosPage() {
         {/* ═══════ TAB: Templates ═══════ */}
         <TabsContent value="templates" className="space-y-6 mt-6">
           <TemplatesTab
-            templates={templates}
+            templates={filteredTemplates}
+            allCount={templates.length}
             selectedTemplateId={selectedTemplateId}
             setSelectedTemplateId={setSelectedTemplateId}
             canPlatform={canPlatform}
@@ -340,6 +419,9 @@ export default function QuestionariosPage() {
             tplDesc={tplDesc} setTplDesc={setTplDesc}
             tplPlatform={tplPlatform} setTplPlatform={setTplPlatform}
             onCreateTemplate={onCreateTemplate}
+            searchTpl={searchTpl} setSearchTpl={setSearchTpl}
+            filterOrigin={filterOrigin} setFilterOrigin={setFilterOrigin}
+            filterActive={filterActive} setFilterActive={setFilterActive}
           />
         </TabsContent>
 
@@ -352,6 +434,8 @@ export default function QuestionariosPage() {
             selectedTemplateId={selectedTemplateId}
             onCreateVersion={onCreateVersionFromBuilder}
             jsonText={jsonText}
+            selectedVersion={selectedVersion}
+            onLoadVersion={selectedVersion ? () => loadVersionIntoBuilder(selectedVersion) : undefined}
           />
         </TabsContent>
 
@@ -394,11 +478,15 @@ export default function QuestionariosPage() {
         {/* ═══════ TAB: Versoes ═══════ */}
         <TabsContent value="versions" className="space-y-6 mt-6">
           <VersionsTab
-            versions={versions}
+            versions={filteredVersions}
+            allCount={versions.length}
             selectedVersionId={selectedVersionId}
             setSelectedVersionId={setSelectedVersionId}
-            onPublish={onPublish}
+            onPublish={(id) => setConfirmPublishId(id)}
+            onLoadIntoBuilder={loadVersionIntoBuilder}
             selectedTemplateId={selectedTemplateId}
+            filterVersionStatus={filterVersionStatus}
+            setFilterVersionStatus={setFilterVersionStatus}
           />
         </TabsContent>
       </Tabs>
@@ -411,11 +499,13 @@ export default function QuestionariosPage() {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function TemplatesTab({
-  templates, selectedTemplateId, setSelectedTemplateId,
+  templates, allCount, selectedTemplateId, setSelectedTemplateId,
   canPlatform, tplKey, setTplKey, tplName, setTplName, tplDesc, setTplDesc,
   tplPlatform, setTplPlatform, onCreateTemplate,
+  searchTpl, setSearchTpl, filterOrigin, setFilterOrigin, filterActive, setFilterActive,
 }: {
   templates: QuestionnaireTemplateDetailOut[];
+  allCount: number;
   selectedTemplateId: string;
   setSelectedTemplateId: (v: string) => void;
   canPlatform: boolean;
@@ -424,6 +514,9 @@ function TemplatesTab({
   tplDesc: string; setTplDesc: (v: string) => void;
   tplPlatform: boolean; setTplPlatform: (v: boolean) => void;
   onCreateTemplate: () => Promise<void>;
+  searchTpl: string; setSearchTpl: (v: string) => void;
+  filterOrigin: "all" | "official" | "tenant"; setFilterOrigin: (v: "all" | "official" | "tenant") => void;
+  filterActive: "all" | "active" | "inactive"; setFilterActive: (v: "all" | "active" | "inactive") => void;
 }) {
   const [showForm, setShowForm] = useState(false);
 
@@ -438,6 +531,46 @@ function TemplatesTab({
           {showForm ? "Cancelar" : "Novo Template"}
         </Button>
       </div>
+
+      {/* Search & Filters */}
+      <Card>
+        <CardContent className="pt-6">
+          <div className="flex flex-col md:flex-row gap-3">
+            <div className="flex-1">
+              <Input
+                placeholder="Buscar por nome, key ou descricao..."
+                value={searchTpl}
+                onChange={(e) => setSearchTpl(e.target.value)}
+              />
+            </div>
+            <Select value={filterOrigin} onValueChange={(v) => setFilterOrigin(v as "all" | "official" | "tenant")}>
+              <SelectTrigger className="w-full md:w-[160px]">
+                <SelectValue placeholder="Origem" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todas origens</SelectItem>
+                <SelectItem value="official">Oficiais</SelectItem>
+                <SelectItem value="tenant">Tenant</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={filterActive} onValueChange={(v) => setFilterActive(v as "all" | "active" | "inactive")}>
+              <SelectTrigger className="w-full md:w-[140px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">Todos status</SelectItem>
+                <SelectItem value="active">Ativos</SelectItem>
+                <SelectItem value="inactive">Inativos</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          {(searchTpl || filterOrigin !== "all" || filterActive !== "all") && (
+            <p className="text-xs text-muted-foreground mt-2">
+              Exibindo {templates.length} de {allCount} templates
+            </p>
+          )}
+        </CardContent>
+      </Card>
 
       {showForm && (
         <Card>
@@ -557,6 +690,8 @@ function BuilderTab({
   selectedTemplateId,
   onCreateVersion,
   jsonText,
+  selectedVersion,
+  onLoadVersion,
 }: {
   title: string; setTitle: (v: string) => void;
   dimensions: Dimension[]; setDimensions: React.Dispatch<React.SetStateAction<Dimension[]>>;
@@ -564,6 +699,8 @@ function BuilderTab({
   selectedTemplateId: string;
   onCreateVersion: () => Promise<void>;
   jsonText: string;
+  selectedVersion?: QuestionnaireVersionDetailOut;
+  onLoadVersion?: () => void;
 }) {
   const questionsByDimension = useMemo(() => {
     const m: Record<string, Question[]> = {};
@@ -588,6 +725,11 @@ function BuilderTab({
           <p className="text-sm text-muted-foreground">Monte dimensoes e perguntas de forma guiada</p>
         </div>
         <div className="flex gap-2">
+          {onLoadVersion && selectedVersion && (
+            <Button variant="outline" size="sm" onClick={onLoadVersion}>
+              Carregar v{selectedVersion.version}
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={() => { navigator.clipboard.writeText(jsonText); toast.success("JSON copiado"); }}>
             Copiar JSON
           </Button>
@@ -786,14 +928,44 @@ function BuilderTab({
                       />
                     </div>
                   </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="text-red-500 hover:text-red-600"
-                    onClick={() => setQuestions((prev) => prev.filter((_, i) => i !== idx))}
-                  >
-                    Remover
-                  </Button>
+                  <div className="flex gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      disabled={idx === 0}
+                      onClick={() => setQuestions((prev) => {
+                        const a = [...prev];
+                        [a[idx - 1], a[idx]] = [a[idx], a[idx - 1]];
+                        return a;
+                      })}
+                      title="Mover para cima"
+                    >
+                      ↑
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-8 w-8 p-0"
+                      disabled={idx === questions.length - 1}
+                      onClick={() => setQuestions((prev) => {
+                        const a = [...prev];
+                        [a[idx], a[idx + 1]] = [a[idx + 1], a[idx]];
+                        return a;
+                      })}
+                      title="Mover para baixo"
+                    >
+                      ↓
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-red-500 hover:text-red-600"
+                      onClick={() => setQuestions((prev) => prev.filter((_, i) => i !== idx))}
+                    >
+                      Remover
+                    </Button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -817,17 +989,32 @@ function BuilderTab({
 
       {/* Preview Summary */}
       <Card>
-        <CardContent className="pt-6">
+        <CardHeader>
           <div className="flex items-center justify-between">
-            <div className="text-sm">
-              <span className="font-medium">Resumo:</span>{" "}
-              <span className="text-muted-foreground">
-                {dimensions.length} dimensao(oes), {questions.length} pergunta(s)
-                {dimensions.length > 0 && (
-                  <> — {dimensions.map((d) => `${d.name} (${questionsByDimension[d.key]?.length || 0})`).join(", ")}</>
-                )}
-              </span>
+            <CardTitle className="text-base">Resumo do Questionario</CardTitle>
+            <div className="flex items-center gap-2">
+              <Badge variant="secondary">{dimensions.length} dimensao(oes)</Badge>
+              <Badge variant="secondary">{questions.length} pergunta(s)</Badge>
             </div>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {dimensions.length > 0 && (
+            <div className="grid gap-2">
+              {dimensions.map((d) => {
+                const count = questionsByDimension[d.key]?.length || 0;
+                const pct = questions.length > 0 ? Math.round((count / questions.length) * 100) : 0;
+                return (
+                  <div key={d.key} className="flex items-center gap-3">
+                    <span className="text-xs w-36 truncate" title={d.name}>{d.name}</span>
+                    <Progress value={pct} className="flex-1 h-2" />
+                    <span className="text-xs text-muted-foreground w-16 text-right">{count} ({pct}%)</span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+          <div className="flex justify-end">
             <Button onClick={onCreateVersion} disabled={!selectedTemplateId}>
               Criar versao (draft)
             </Button>
@@ -843,15 +1030,21 @@ function BuilderTab({
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function VersionsTab({
-  versions, selectedVersionId, setSelectedVersionId, onPublish, selectedTemplateId,
+  versions, allCount, selectedVersionId, setSelectedVersionId, onPublish, onLoadIntoBuilder, selectedTemplateId,
+  filterVersionStatus, setFilterVersionStatus,
 }: {
   versions: QuestionnaireVersionDetailOut[];
+  allCount: number;
   selectedVersionId: string;
   setSelectedVersionId: (v: string) => void;
-  onPublish: (versionId: string) => Promise<void>;
+  onPublish: (versionId: string) => void;
+  onLoadIntoBuilder: (version: QuestionnaireVersionDetailOut) => void;
   selectedTemplateId: string;
+  filterVersionStatus: "all" | "draft" | "published" | "archived";
+  setFilterVersionStatus: (v: "all" | "draft" | "published" | "archived") => void;
 }) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [previewMode, setPreviewMode] = useState<"json" | "visual">("visual");
 
   if (!selectedTemplateId) {
     return (
@@ -870,7 +1063,22 @@ function VersionsTab({
           <h2 className="text-lg font-semibold">Historico de Versoes</h2>
           <p className="text-sm text-muted-foreground">Versionamento completo com publicacao controlada</p>
         </div>
-        <Badge variant="secondary">{versions.length} versao(oes)</Badge>
+        <div className="flex items-center gap-3">
+          <Select value={filterVersionStatus} onValueChange={(v) => setFilterVersionStatus(v as "all" | "draft" | "published" | "archived")}>
+            <SelectTrigger className="w-[150px]">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Todos status</SelectItem>
+              <SelectItem value="draft">Draft</SelectItem>
+              <SelectItem value="published">Publicadas</SelectItem>
+              <SelectItem value="archived">Arquivadas</SelectItem>
+            </SelectContent>
+          </Select>
+          <Badge variant="secondary">
+            {versions.length}{filterVersionStatus !== "all" ? ` de ${allCount}` : ""} versao(oes)
+          </Badge>
+        </div>
       </div>
 
       <Card>
@@ -907,7 +1115,7 @@ function VersionsTab({
                       </div>
                     </TableCell>
                     <TableCell className="text-right">
-                      <div className="flex gap-1 justify-end">
+                      <div className="flex gap-1 justify-end flex-wrap">
                         {v.status === "draft" && (
                           <Button size="sm" onClick={() => onPublish(v.id)}>
                             Publicar
@@ -916,9 +1124,17 @@ function VersionsTab({
                         <Button
                           variant="outline"
                           size="sm"
+                          onClick={() => onLoadIntoBuilder(v)}
+                          title="Carregar conteudo no Builder para criar nova versao"
+                        >
+                          Editar como nova
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
                           onClick={() => setExpandedId(expandedId === v.id ? null : v.id)}
                         >
-                          {expandedId === v.id ? "Fechar" : "Ver JSON"}
+                          {expandedId === v.id ? "Fechar" : "Detalhes"}
                         </Button>
                         <Button
                           variant={v.id === selectedVersionId ? "default" : "outline"}
@@ -942,27 +1158,97 @@ function VersionsTab({
             </TableBody>
           </Table>
 
-          {/* Expanded JSON preview */}
-          {expandedId && (
-            <div className="mt-4 rounded-lg border bg-muted/30 p-4">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">Conteudo JSON — v{versions.find((v) => v.id === expandedId)?.version}</span>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    const v = versions.find((x) => x.id === expandedId);
-                    if (v) { navigator.clipboard.writeText(JSON.stringify(v.content, null, 2)); toast.success("JSON copiado"); }
-                  }}
-                >
-                  Copiar
-                </Button>
+          {/* Expanded version detail */}
+          {expandedId && (() => {
+            const ev = versions.find((x) => x.id === expandedId);
+            if (!ev) return null;
+            const dims: Dimension[] = ev.content?.dimensions || [];
+            const qs: Question[] = ev.content?.questions || [];
+            return (
+              <div className="mt-4 rounded-lg border bg-muted/30 p-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm font-medium">v{ev.version} — {ev.content?.title || "Sem titulo"}</span>
+                    <Badge className={STATUS_STYLE[ev.status] || ""}>{ev.status}</Badge>
+                    <Badge variant="outline">{dims.length} dim.</Badge>
+                    <Badge variant="outline">{qs.length} perguntas</Badge>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      variant={previewMode === "visual" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setPreviewMode("visual")}
+                    >
+                      Visual
+                    </Button>
+                    <Button
+                      variant={previewMode === "json" ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setPreviewMode("json")}
+                    >
+                      JSON
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => { navigator.clipboard.writeText(JSON.stringify(ev.content, null, 2)); toast.success("JSON copiado"); }}
+                    >
+                      Copiar
+                    </Button>
+                  </div>
+                </div>
+
+                {previewMode === "visual" ? (
+                  <div className="space-y-4">
+                    {/* Dimension distribution */}
+                    {dims.length > 0 && (
+                      <div className="space-y-2">
+                        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Distribuicao por dimensao</span>
+                        <div className="grid gap-2">
+                          {dims.map((d) => {
+                            const count = qs.filter((q) => q.dimension === d.key).length;
+                            const pct = qs.length > 0 ? Math.round((count / qs.length) * 100) : 0;
+                            return (
+                              <div key={d.key} className="flex items-center gap-3">
+                                <span className="text-xs w-32 truncate" title={d.name}>{d.name}</span>
+                                <Progress value={pct} className="flex-1 h-2" />
+                                <span className="text-xs text-muted-foreground w-20 text-right">{count} ({pct}%)</span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                    <Separator />
+                    {/* Questions readable list */}
+                    <div className="space-y-2 max-h-[400px] overflow-auto">
+                      {qs.map((q, i) => {
+                        const dimName = dims.find((d) => d.key === q.dimension)?.name || q.dimension;
+                        return (
+                          <div key={q.id || i} className="flex items-start gap-3 py-2 border-b last:border-0">
+                            <span className="w-7 h-7 rounded-full bg-indigo-100 dark:bg-indigo-900 text-indigo-700 dark:text-indigo-200 flex items-center justify-center text-xs font-bold shrink-0 mt-0.5">
+                              {i + 1}
+                            </span>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm">{q.text}</p>
+                              <div className="flex gap-2 mt-1">
+                                <Badge variant="outline" className="text-xs">{dimName}</Badge>
+                                <span className="text-xs text-muted-foreground">Peso: {q.weight} | Escala: {q.scale_min}-{q.scale_max}</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  <pre className="text-xs font-mono overflow-auto max-h-[400px] whitespace-pre-wrap">
+                    {JSON.stringify(ev.content, null, 2)}
+                  </pre>
+                )}
               </div>
-              <pre className="text-xs font-mono overflow-auto max-h-[300px] whitespace-pre-wrap">
-                {JSON.stringify(versions.find((v) => v.id === expandedId)?.content, null, 2)}
-              </pre>
-            </div>
-          )}
+            );
+          })()}
         </CardContent>
       </Card>
     </>
