@@ -177,6 +177,7 @@ export default function SignupPage() {
         admin_phone: values.admin_phone?.replace(/\D/g, "") || undefined,
         admin_password: values.admin_password,
         affiliate_code: affiliate || undefined,
+        plan_key: selectedPlan || undefined,
       });
       toast.success("Conta criada com sucesso! Bem-vindo!");
       router.push("/dashboard");

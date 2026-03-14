@@ -29,6 +29,7 @@ from app.api.v1 import (
     platform_packs,
     esocial,
     platform_plans,
+    platform_subscriptions,
     invitations,
     auth_password,
     trainings,
@@ -62,6 +63,7 @@ router.include_router(
 router.include_router(trainings.router, tags=["trainings"], dependencies=console_deps)
 router.include_router(lms.router, tags=["lms"], dependencies=console_deps)
 router.include_router(billing.router, tags=["billing"], dependencies=console_deps)
+router.include_router(billing.public_router, tags=["billing"])  # plans + webhook (sem auth)
 router.include_router(settings.router, tags=["settings"], dependencies=console_deps)
 router.include_router(reports.router, tags=["reports"], dependencies=console_deps)
 router.include_router(affiliates.router, tags=["affiliates"], dependencies=console_deps)
@@ -72,6 +74,9 @@ router.include_router(
 )
 router.include_router(
     platform_plans.router, tags=["platform-plans"], dependencies=console_deps
+)
+router.include_router(
+    platform_subscriptions.router, tags=["platform-subscriptions"], dependencies=console_deps
 )
 
 # Invitations (misto: alguns endpoints públicos para aceitar convite)

@@ -69,8 +69,11 @@ def public_signup(payload: PublicSignupRequest, db: Session = Depends(get_db)):
         )
         db.add(cnpj_obj)
 
-    # Trial automático: aplica um plano default (START)
-    plan = db.query(Plan).filter(Plan.key == "START", Plan.is_active == True).first()
+    # Trial automático: aplica plano selecionado ou START como fallback
+    desired_key = (payload.plan_key or "").strip().upper() or "START"
+    plan = db.query(Plan).filter(Plan.key == desired_key, Plan.is_active == True).first()
+    if not plan:
+        plan = db.query(Plan).filter(Plan.key == "START", Plan.is_active == True).first()
     if plan:
         db.add(
             TenantSubscription(

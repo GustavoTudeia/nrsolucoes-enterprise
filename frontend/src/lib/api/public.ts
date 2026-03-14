@@ -20,6 +20,7 @@ export async function publicSignup(payload: {
   admin_name?: string;
   admin_password: string;
   affiliate_code?: string;
+  plan_key?: string;
   cnpj?: string;
   admin_cpf?: string;
   admin_phone?: string;

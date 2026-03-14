@@ -22,6 +22,9 @@ export type PlanAdminOut = {
   name: string;
   features: Record<string, any>;
   limits: Record<string, any>;
+  price_monthly?: number | null;
+  price_annual?: number | null;
+  is_custom_price?: boolean;
   stripe_price_id?: string | null;
   is_active: boolean;
   created_at: string;
@@ -45,6 +48,39 @@ export async function createTenant(payload: TenantCreate) {
 
 export async function listPlatformPlans() {
   return apiFetch<PlanAdminOut[]>("console", "/platform/plans");
+}
+
+export async function createPlan(payload: {
+  key: string;
+  name: string;
+  features?: Record<string, any>;
+  limits?: Record<string, any>;
+  price_monthly?: number | null;
+  price_annual?: number | null;
+  is_custom_price?: boolean;
+  stripe_price_id?: string | null;
+  is_active?: boolean;
+}) {
+  return apiFetch<PlanAdminOut>("console", "/platform/plans", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updatePlan(planId: string, payload: {
+  name?: string;
+  features?: Record<string, any>;
+  limits?: Record<string, any>;
+  price_monthly?: number | null;
+  price_annual?: number | null;
+  is_custom_price?: boolean;
+  stripe_price_id?: string | null;
+  is_active?: boolean;
+}) {
+  return apiFetch<PlanAdminOut>("console", `/platform/plans/${planId}`, {
+    method: "PUT",
+    body: JSON.stringify(payload),
+  });
 }
 
 export async function setTenantPlan(tenantId: string, planKey: string, status: string = "active") {

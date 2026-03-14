@@ -8,19 +8,54 @@ from app.core.errors import BadRequest, Forbidden
 from app.core.rbac import ROLE_TENANT_ADMIN
 from app.core.config import settings
 from app.db.session import get_db
+from app.models.affiliate import Affiliate
 from app.models.billing import Plan, TenantSubscription
+from app.models.tenant import Tenant
 from app.schemas.billing import PlanOut, SubscriptionOut, CheckoutSessionOut, PortalSessionOut, InvoiceOut
 from app.services.entitlements import resolve_entitlements_for_user
-from app.services.billing_stripe import handle_stripe_webhook
+from app.services.billing_stripe import handle_stripe_webhook, create_checkout_session as stripe_create_checkout
 
+# Router público (sem console_deps — acessível sem auth)
+public_router = APIRouter(prefix="/billing")
+
+# Router autenticado (registrado com console_deps)
 router = APIRouter(prefix="/billing")
 
 
-@router.get("/plans", response_model=list[PlanOut])
+# ── Endpoints públicos ────────────────────────────────────────────────────────
+
+@public_router.get("/plans", response_model=list[PlanOut])
 def list_plans(db: Session = Depends(get_db)):
     plans = db.query(Plan).filter(Plan.is_active == True).order_by(Plan.key.asc()).all()
-    return [PlanOut(id=p.id, key=p.key, name=p.name, features=p.features or {}, limits=p.limits or {}) for p in plans]
+    return [
+        PlanOut(
+            id=p.id, key=p.key, name=p.name,
+            features=p.features or {}, limits=p.limits or {},
+            price_monthly=p.price_monthly, price_annual=p.price_annual,
+            is_custom_price=p.is_custom_price or False,
+        )
+        for p in plans
+    ]
 
+
+@public_router.post("/webhook")
+async def stripe_webhook(
+    request: Request,
+    stripe_signature: str = Header(default="", alias="Stripe-Signature"),
+    db: Session = Depends(get_db),
+):
+    if not settings.STRIPE_ENABLED:
+        raise BadRequest("Stripe desabilitado")
+
+    payload = await request.body()
+    sig = stripe_signature or request.headers.get("stripe-signature") or ""
+    if not sig:
+        raise BadRequest("Header Stripe-Signature ausente")
+
+    return handle_stripe_webhook(db, payload, sig)
+
+
+# ── Endpoints autenticados ────────────────────────────────────────────────────
 
 @router.get("/subscription", response_model=SubscriptionOut)
 def get_subscription(
@@ -30,7 +65,6 @@ def get_subscription(
 ):
     sub = db.query(TenantSubscription).filter(TenantSubscription.tenant_id == tenant_id).first()
     ent = resolve_entitlements_for_user(db, user)
-    # O schema espera um dict (Pydantic v2 não aceita dataclass diretamente aqui)
     ent_snap = {"features": ent.features, "limits": ent.limits}
     if not sub:
         return SubscriptionOut(status="none", plan_id=None, provider=None, current_period_end=None, entitlements_snapshot=ent_snap)
@@ -44,8 +78,9 @@ def get_subscription(
 
 
 @router.post("/checkout-session", response_model=CheckoutSessionOut)
-def create_checkout_session(
+def create_checkout_session_endpoint(
     plan_key: str,
+    affiliate_code: str = "",
     db: Session = Depends(get_db),
     user=Depends(require_any_role([ROLE_TENANT_ADMIN])),
     tenant_id=Depends(tenant_id_from_user),
@@ -53,13 +88,24 @@ def create_checkout_session(
     if not settings.STRIPE_ENABLED:
         raise BadRequest("Stripe desabilitado")
 
-    import stripe
-
-    stripe.api_key = settings.STRIPE_SECRET_KEY
-
     plan = db.query(Plan).filter(Plan.key == plan_key, Plan.is_active == True).first()
     if not plan or not plan.stripe_price_id:
-        raise BadRequest("Plano inválido")
+        raise BadRequest("Plano inválido ou sem Stripe Price ID")
+
+    # Resolve afiliado para aplicar desconto
+    affiliate = None
+    if affiliate_code:
+        affiliate = db.query(Affiliate).filter(
+            Affiliate.code == affiliate_code.strip(), Affiliate.status == "active"
+        ).first()
+
+    # Se não veio code, tenta o affiliate do próprio tenant
+    if not affiliate:
+        tenant = db.query(Tenant).filter(Tenant.id == tenant_id).first()
+        if tenant and tenant.referred_by_affiliate_id:
+            affiliate = db.query(Affiliate).filter(
+                Affiliate.id == tenant.referred_by_affiliate_id, Affiliate.status == "active"
+            ).first()
 
     # Recupera ou cria subscription row
     sub = db.query(TenantSubscription).filter(TenantSubscription.tenant_id == tenant_id).first()
@@ -68,16 +114,15 @@ def create_checkout_session(
         db.add(sub)
         db.flush()
 
-    # Create session
-    # Use explicit URLs (configurable per environment) to avoid relying on any implicit frontend base URL.
-    session = stripe.checkout.Session.create(
-        mode="subscription",
-        line_items=[{"price": plan.stripe_price_id, "quantity": 1}],
-        success_url=settings.STRIPE_SUCCESS_URL,
-        cancel_url=settings.STRIPE_CANCEL_URL,
-        metadata={"tenant_id": str(tenant_id), "plan_key": plan.key},
+    # Usa o service completo (com cupom de afiliado)
+    checkout_url = stripe_create_checkout(
+        db=db,
+        tenant_id=tenant_id,
+        user_email=user.email,
+        stripe_price_id=plan.stripe_price_id,
+        affiliate=affiliate,
     )
-    return CheckoutSessionOut(checkout_url=session.url)
+    return CheckoutSessionOut(checkout_url=checkout_url)
 
 
 @router.post("/portal", response_model=PortalSessionOut)
@@ -136,29 +181,3 @@ def list_invoices(
             )
         )
     return out
-
-
-@router.post("/webhook")
-async def stripe_webhook(
-    request: Request,
-    stripe_signature: str = Header(default="", alias="Stripe-Signature"),
-    db: Session = Depends(get_db),
-):
-    """Webhook Stripe (produção).
-
-    Observações:
-    - Stripe envia o corpo bruto + header Stripe-Signature.
-    - Validamos a assinatura com STRIPE_WEBHOOK_SECRET.
-    - A lógica de update de assinatura/entitlements fica centralizada em services.billing_stripe.
-    """
-
-    if not settings.STRIPE_ENABLED:
-        raise BadRequest("Stripe desabilitado")
-
-    payload = await request.body()
-    sig = stripe_signature or request.headers.get("stripe-signature") or ""
-    if not sig:
-        raise BadRequest("Header Stripe-Signature ausente")
-
-    # handle_stripe_webhook já valida a assinatura e aplica updates no banco
-    return handle_stripe_webhook(db, payload, sig)

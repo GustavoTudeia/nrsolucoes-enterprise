@@ -15,6 +15,7 @@ class PublicSignupRequest(BaseModel):
     admin_phone: Optional[str] = None
     admin_password: str = Field(..., min_length=8)
     affiliate_code: Optional[str] = None
+    plan_key: Optional[str] = None
 
     @field_validator("cnpj")
     @classmethod

@@ -45,6 +45,9 @@ export interface PlanOut {
   name: string;
   features: Record<string, any>;
   limits: Record<string, any>;
+  price_monthly?: number | null;
+  price_annual?: number | null;
+  is_custom_price?: boolean;
 }
 
 export interface SubscriptionOut {
@@ -378,6 +381,27 @@ export interface S2220ExamOut {
   payload: any;
   created_at: string;
   updated_at: string;
+}
+
+// ── Platform Admin: Subscriptions ────────────────────────────────────────────
+
+export interface SubscriptionAdminOut {
+  id: string;
+  tenant_id: string;
+  tenant_name: string;
+  plan_key?: string | null;
+  plan_name?: string | null;
+  status: string;
+  period_start?: string | null;
+  period_end?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface SubscriptionStatsOut {
+  total: number;
+  by_status: Record<string, number>;
+  active_count: number;
 }
 
 // Re-export training types for backwards compatibility

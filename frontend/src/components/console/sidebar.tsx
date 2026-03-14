@@ -155,6 +155,8 @@ export function ConsoleSidebar() {
       label: "Plataforma",
       items: [
         { href: "/platform/tenants", label: "Tenants", icon: Building2, platformOnly: true },
+        { href: "/platform/planos", label: "Planos", icon: CreditCard, platformOnly: true },
+        { href: "/platform/assinaturas", label: "Assinaturas", icon: BarChart3, platformOnly: true },
         { href: "/platform/afiliados", label: "Afiliados", icon: Network, platformOnly: true },
       ],
     },

@@ -18,6 +18,11 @@ class Plan(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     features = Column(JSON, nullable=False, default=dict)
     limits = Column(JSON, nullable=False, default=dict)
 
+    # pricing (centavos BRL)
+    price_monthly = Column(Integer, nullable=True)   # ex: 29900 = R$299,00
+    price_annual = Column(Integer, nullable=True)     # ex: 299900 = R$2.999,00
+    is_custom_price = Column(Boolean, default=False, nullable=False)  # "Sob consulta"
+
     # provider mapping
     stripe_price_id = Column(String(200), nullable=True)
 

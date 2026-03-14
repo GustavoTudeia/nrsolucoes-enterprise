@@ -12,6 +12,9 @@ class PlanOut(BaseModel):
     name: str
     features: Dict[str, Any]
     limits: Dict[str, Any]
+    price_monthly: Optional[int] = None
+    price_annual: Optional[int] = None
+    is_custom_price: bool = False
 
 
 class SubscriptionOut(BaseModel):

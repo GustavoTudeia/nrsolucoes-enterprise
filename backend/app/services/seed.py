@@ -20,65 +20,114 @@ DEFAULT_ROLES = [
 ]
 
 DEFAULT_PLANS = [
+    # (key, name, features, limits, price_monthly_cents, price_annual_cents, is_custom_price)
     (
         "START",
         "Start (Micro/Pequenas)",
         {
+            # Módulos
+            "CAMPAIGNS": True,
+            "QUESTIONNAIRES": True,
             "LMS": True,
-            "MULTI_CNPJ": False,
+            "RISK_MAP": False,
+            "ACTION_PLANS": False,
+            "REPORTS": False,
+            # Conformidade
             "ANONYMIZATION": True,
-            "WHITE_LABEL": False,
-            "SSO_OIDC": False,
-            "AUDIT_EXPORT": False,
             "NR17": False,
             "ESOCIAL_EXPORT": False,
-},
-        {"cnpj_max": 1, "employees_max": 50, "history_months": 12, "storage_gb": 5},
+            "AUDIT": False,
+            "AUDIT_EXPORT": False,
+            # Infraestrutura
+            "MULTI_CNPJ": False,
+            "WHITE_LABEL": False,
+            "SSO_OIDC": False,
+            "API_ACCESS": False,
+            "MULTI_TENANT_MANAGER": False,
+        },
+        {"cnpj_max": 1, "employees_max": 50, "users_max": 5, "campaigns_max": 3, "history_months": 12, "storage_gb": 5},
+        0, 0, False,  # Grátis (trial)
     ),
     (
         "PRO",
         "Pro (PME/Médias)",
         {
+            # Módulos
+            "CAMPAIGNS": True,
+            "QUESTIONNAIRES": True,
             "LMS": True,
-            "MULTI_CNPJ": True,
+            "RISK_MAP": True,
+            "ACTION_PLANS": True,
+            "REPORTS": True,
+            # Conformidade
             "ANONYMIZATION": True,
-            "WHITE_LABEL": False,
-            "SSO_OIDC": False,
-            "AUDIT_EXPORT": False,
             "NR17": True,
             "ESOCIAL_EXPORT": False,
-},
-        {"cnpj_max": 3, "employees_max": 300, "history_months": 24, "storage_gb": 50},
+            "AUDIT": True,
+            "AUDIT_EXPORT": False,
+            # Infraestrutura
+            "MULTI_CNPJ": True,
+            "WHITE_LABEL": False,
+            "SSO_OIDC": False,
+            "API_ACCESS": False,
+            "MULTI_TENANT_MANAGER": False,
+        },
+        {"cnpj_max": 3, "employees_max": 300, "users_max": 30, "campaigns_max": 20, "history_months": 24, "storage_gb": 50},
+        29900, 299000, False,  # R$299/mês ou R$2.990/ano
     ),
     (
         "ENTERPRISE",
         "Enterprise (Grandes)",
         {
+            # Módulos
+            "CAMPAIGNS": True,
+            "QUESTIONNAIRES": True,
             "LMS": True,
-            "MULTI_CNPJ": True,
+            "RISK_MAP": True,
+            "ACTION_PLANS": True,
+            "REPORTS": True,
+            # Conformidade
             "ANONYMIZATION": True,
-            "WHITE_LABEL": True,
-            "SSO_OIDC": True,
-            "AUDIT_EXPORT": True,
             "NR17": True,
             "ESOCIAL_EXPORT": True,
-},
-        {"cnpj_max": 9999, "employees_max": 999999, "history_months": 120, "storage_gb": 2000},
+            "AUDIT": True,
+            "AUDIT_EXPORT": True,
+            # Infraestrutura
+            "MULTI_CNPJ": True,
+            "WHITE_LABEL": True,
+            "SSO_OIDC": True,
+            "API_ACCESS": True,
+            "MULTI_TENANT_MANAGER": False,
+        },
+        {"cnpj_max": 9999, "employees_max": 999999, "users_max": 9999, "campaigns_max": 9999, "history_months": 120, "storage_gb": 2000},
+        None, None, True,  # Sob consulta
     ),
     (
         "SST",
         "SST/Parceiro",
         {
+            # Módulos
+            "CAMPAIGNS": True,
+            "QUESTIONNAIRES": True,
             "LMS": True,
-            "MULTI_TENANT_MANAGER": True,
+            "RISK_MAP": True,
+            "ACTION_PLANS": True,
+            "REPORTS": True,
+            # Conformidade
             "ANONYMIZATION": True,
-            "WHITE_LABEL": True,
-            "SSO_OIDC": True,
-            "AUDIT_EXPORT": True,
             "NR17": True,
             "ESOCIAL_EXPORT": True,
-},
+            "AUDIT": True,
+            "AUDIT_EXPORT": True,
+            # Infraestrutura
+            "MULTI_CNPJ": True,
+            "WHITE_LABEL": True,
+            "SSO_OIDC": True,
+            "API_ACCESS": True,
+            "MULTI_TENANT_MANAGER": True,
+        },
         {"client_max": 9999},
+        None, None, True,  # Sob consulta
     ),
 ]
 
@@ -92,10 +141,14 @@ def seed_platform_defaults(db: Session) -> None:
     db.commit()
 
     # Plans
-    for key, name, features, limits in DEFAULT_PLANS:
+    for key, name, features, limits, price_m, price_a, custom in DEFAULT_PLANS:
         exists = db.query(Plan).filter(Plan.key == key).first()
         if not exists:
-            db.add(Plan(key=key, name=name, features=features, limits=limits, is_active=True, stripe_price_id=None))
+            db.add(Plan(
+                key=key, name=name, features=features, limits=limits,
+                price_monthly=price_m or None, price_annual=price_a or None,
+                is_custom_price=custom, is_active=True, stripe_price_id=None,
+            ))
     db.commit()
 
 
