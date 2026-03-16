@@ -6,13 +6,13 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
+from sqlalchemy import func as sa_func
 
 from app.api.deps import require_any_role, tenant_id_from_user, get_request_meta, require_active_subscription
 from app.core.audit import make_audit_event
 from app.core.errors import BadRequest, NotFound, Forbidden
 from app.core.rbac import ROLE_TENANT_ADMIN, ROLE_CNPJ_MANAGER, ROLE_UNIT_MANAGER
 from app.db.session import get_db
-from sqlalchemy import func as sa_func
 from app.models.campaign import Campaign, SurveyResponse
 from app.models.org import OrgUnit
 from app.models.questionnaire import QuestionnaireVersion
@@ -21,8 +21,30 @@ from app.schemas.campaign import CampaignCreate, CampaignOut, CampaignDetailOut,
 from app.schemas.common import Page
 from app.services.plan_limits import enforce_limit, month_range
 from app.services.risk_engine import compute_dimension_scores
+from app.services.analytics_service import capture_analytics_event
+from app.services.tenant_health import upsert_tenant_health_snapshot
 
 router = APIRouter(prefix="/campaigns")
+
+
+def _campaign_requires_invitation(campaign: Campaign) -> bool:
+    value = getattr(campaign, "require_invitation", False)
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() in {"1", "true", "yes", "sim", "s"}
+
+
+def _campaign_out(camp: Campaign) -> CampaignOut:
+    return CampaignOut(
+        id=camp.id,
+        name=camp.name,
+        cnpj_id=camp.cnpj_id,
+        org_unit_id=camp.org_unit_id,
+        questionnaire_version_id=camp.questionnaire_version_id,
+        status=camp.status,
+        require_invitation=_campaign_requires_invitation(camp),
+        invitation_expires_days=int(getattr(camp, "invitation_expires_days", 30) or 30),
+    )
 
 
 @router.get("", response_model=Page[CampaignDetailOut])
@@ -36,7 +58,7 @@ def list_campaigns(
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     _sub_ok: None = Depends(require_active_subscription),
-    user = Depends(require_any_role([ROLE_TENANT_ADMIN, ROLE_CNPJ_MANAGER, ROLE_UNIT_MANAGER])),
+    user=Depends(require_any_role([ROLE_TENANT_ADMIN, ROLE_CNPJ_MANAGER, ROLE_UNIT_MANAGER])),
     tenant_id: UUID = Depends(tenant_id_from_user),
 ):
     base = db.query(Campaign).filter(Campaign.tenant_id == tenant_id)
@@ -55,7 +77,6 @@ def list_campaigns(
     total = base.count()
     rows = base.order_by(Campaign.created_at.desc()).offset(offset).limit(limit).all()
 
-    # Batch response counts
     campaign_ids = [r.id for r in rows]
     resp_counts: dict = {}
     if campaign_ids:
@@ -67,7 +88,6 @@ def list_campaigns(
         )
         resp_counts = {cid: cnt for cid, cnt in counts}
 
-    # Batch org unit names
     unit_ids = {r.org_unit_id for r in rows if r.org_unit_id}
     unit_names: dict = {}
     if unit_ids:
@@ -85,6 +105,8 @@ def list_campaigns(
             questionnaire_version_id=r.questionnaire_version_id,
             status=r.status,
             response_count=resp_counts.get(r.id, 0),
+            require_invitation=_campaign_requires_invitation(r),
+            invitation_expires_days=int(getattr(r, "invitation_expires_days", 30) or 30),
             created_at=r.created_at,
             opened_at=r.opened_at,
             closed_at=r.closed_at,
@@ -99,7 +121,7 @@ def get_campaign(
     campaign_id: UUID,
     db: Session = Depends(get_db),
     _sub_ok: None = Depends(require_active_subscription),
-    user = Depends(require_any_role([ROLE_TENANT_ADMIN, ROLE_CNPJ_MANAGER, ROLE_UNIT_MANAGER])),
+    user=Depends(require_any_role([ROLE_TENANT_ADMIN, ROLE_CNPJ_MANAGER, ROLE_UNIT_MANAGER])),
     tenant_id: UUID = Depends(tenant_id_from_user),
 ):
     camp = db.query(Campaign).filter(Campaign.id == campaign_id, Campaign.tenant_id == tenant_id).first()
@@ -120,6 +142,8 @@ def get_campaign(
         questionnaire_version_id=camp.questionnaire_version_id,
         status=camp.status,
         response_count=resp_count,
+        require_invitation=_campaign_requires_invitation(camp),
+        invitation_expires_days=int(getattr(camp, "invitation_expires_days", 30) or 30),
         created_at=camp.created_at,
         opened_at=camp.opened_at,
         closed_at=camp.closed_at,
@@ -131,13 +155,16 @@ def create_campaign(
     payload: CampaignCreate,
     db: Session = Depends(get_db),
     _sub_ok: None = Depends(require_active_subscription),
-    user = Depends(require_any_role([ROLE_TENANT_ADMIN, ROLE_CNPJ_MANAGER, ROLE_UNIT_MANAGER])),
+    user=Depends(require_any_role([ROLE_TENANT_ADMIN, ROLE_CNPJ_MANAGER, ROLE_UNIT_MANAGER])),
     tenant_id: UUID = Depends(tenant_id_from_user),
     meta: dict = Depends(get_request_meta),
 ):
     qv = db.query(QuestionnaireVersion).filter(QuestionnaireVersion.id == payload.questionnaire_version_id).first()
     if not qv or qv.status != "published":
         raise BadRequest("Questionário deve estar publicado")
+
+    if payload.invitation_expires_days < 1 or payload.invitation_expires_days > 365:
+        raise BadRequest("invitation_expires_days deve estar entre 1 e 365 dias")
 
     now = datetime.utcnow()
     start, end = month_range(now)
@@ -155,9 +182,13 @@ def create_campaign(
         org_unit_id=payload.org_unit_id,
         questionnaire_version_id=payload.questionnaire_version_id,
         status="draft",
+        require_invitation=bool(payload.require_invitation),
+        invitation_expires_days=int(payload.invitation_expires_days),
     )
     db.add(camp)
     db.flush()
+    actor_role = (user.roles[0].role.key if getattr(user, "roles", None) and user.roles and user.roles[0].role else None)
+    capture_analytics_event(db, "campaign_created", source="backend", tenant_id=tenant_id, user_id=user.id, actor_role=actor_role, module="campaigns", properties={"require_invitation": bool(camp.require_invitation), "questionnaire_version_id": str(camp.questionnaire_version_id)})
     db.add(
         make_audit_event(
             tenant_id,
@@ -166,29 +197,27 @@ def create_campaign(
             "CAMPAIGN",
             camp.id,
             None,
-            {"name": camp.name},
+            {
+                "name": camp.name,
+                "require_invitation": bool(camp.require_invitation),
+                "invitation_expires_days": int(camp.invitation_expires_days or 30),
+            },
             meta.get("ip"),
             meta.get("user_agent"),
             meta.get("request_id"),
         )
     )
+    upsert_tenant_health_snapshot(db, tenant_id)
     db.commit()
     db.refresh(camp)
-    return CampaignOut(
-        id=camp.id,
-        name=camp.name,
-        cnpj_id=camp.cnpj_id,
-        org_unit_id=camp.org_unit_id,
-        questionnaire_version_id=camp.questionnaire_version_id,
-        status=camp.status,
-    )
+    return _campaign_out(camp)
 
 
 @router.post("/{campaign_id}/open", response_model=CampaignOut)
 def open_campaign(
     campaign_id: UUID,
     db: Session = Depends(get_db),
-    user = Depends(require_any_role([ROLE_TENANT_ADMIN, ROLE_CNPJ_MANAGER, ROLE_UNIT_MANAGER])),
+    user=Depends(require_any_role([ROLE_TENANT_ADMIN, ROLE_CNPJ_MANAGER, ROLE_UNIT_MANAGER])),
     tenant_id: UUID = Depends(tenant_id_from_user),
     meta: dict = Depends(get_request_meta),
 ):
@@ -197,6 +226,8 @@ def open_campaign(
         raise NotFound("Campanha não encontrada")
     camp.status = "open"
     camp.opened_at = datetime.utcnow()
+    actor_role = (user.roles[0].role.key if getattr(user, "roles", None) and user.roles and user.roles[0].role else None)
+    capture_analytics_event(db, "campaign_published", source="backend", tenant_id=tenant_id, user_id=user.id, actor_role=actor_role, module="campaigns", properties={"require_invitation": _campaign_requires_invitation(camp), "campaign_id": str(camp.id)})
     db.add(
         make_audit_event(
             tenant_id,
@@ -205,29 +236,23 @@ def open_campaign(
             "CAMPAIGN",
             camp.id,
             None,
-            {"status": "open"},
+            {"status": "open", "require_invitation": _campaign_requires_invitation(camp)},
             meta.get("ip"),
             meta.get("user_agent"),
             meta.get("request_id"),
         )
     )
+    upsert_tenant_health_snapshot(db, tenant_id)
     db.commit()
     db.refresh(camp)
-    return CampaignOut(
-        id=camp.id,
-        name=camp.name,
-        cnpj_id=camp.cnpj_id,
-        org_unit_id=camp.org_unit_id,
-        questionnaire_version_id=camp.questionnaire_version_id,
-        status=camp.status,
-    )
+    return _campaign_out(camp)
 
 
 @router.post("/{campaign_id}/close", response_model=CampaignOut)
 def close_campaign(
     campaign_id: UUID,
     db: Session = Depends(get_db),
-    user = Depends(require_any_role([ROLE_TENANT_ADMIN, ROLE_CNPJ_MANAGER, ROLE_UNIT_MANAGER])),
+    user=Depends(require_any_role([ROLE_TENANT_ADMIN, ROLE_CNPJ_MANAGER, ROLE_UNIT_MANAGER])),
     tenant_id: UUID = Depends(tenant_id_from_user),
     meta: dict = Depends(get_request_meta),
 ):
@@ -236,6 +261,8 @@ def close_campaign(
         raise NotFound("Campanha não encontrada")
     camp.status = "closed"
     camp.closed_at = datetime.utcnow()
+    actor_role = (user.roles[0].role.key if getattr(user, "roles", None) and user.roles and user.roles[0].role else None)
+    capture_analytics_event(db, "campaign_closed", source="backend", tenant_id=tenant_id, user_id=user.id, actor_role=actor_role, module="campaigns", properties={"campaign_id": str(camp.id)})
     db.add(
         make_audit_event(
             tenant_id,
@@ -250,19 +277,12 @@ def close_campaign(
             meta.get("request_id"),
         )
     )
+    upsert_tenant_health_snapshot(db, tenant_id)
     db.commit()
     db.refresh(camp)
-    return CampaignOut(
-        id=camp.id,
-        name=camp.name,
-        cnpj_id=camp.cnpj_id,
-        org_unit_id=camp.org_unit_id,
-        questionnaire_version_id=camp.questionnaire_version_id,
-        status=camp.status,
-    )
+    return _campaign_out(camp)
 
 
-# Endpoint de submissão anônima (M2): não exige auth; não armazena PII
 @router.post("/{campaign_id}/responses")
 def submit_response(
     campaign_id: UUID,
@@ -274,11 +294,10 @@ def submit_response(
         raise NotFound("Campanha não encontrada")
     if camp.status != "open":
         raise Forbidden("Campanha não está aberta")
+    if _campaign_requires_invitation(camp):
+        raise Forbidden("Esta campanha exige convite/token válido")
 
-    # setor/unidade: se a campanha já estiver setorizada (org_unit_id definido), usamos esse valor.
-    # caso contrário, aceitamos o org_unit_id informado no payload (para análise segmentada por setor).
     org_unit_id = camp.org_unit_id or payload.org_unit_id
-
     if org_unit_id is not None:
         unit = (
             db.query(OrgUnit)
@@ -302,6 +321,8 @@ def submit_response(
         submitted_at=datetime.utcnow(),
     )
     db.add(sr)
+    capture_analytics_event(db, "questionnaire_submitted", source="public", tenant_id=camp.tenant_id, module="campaigns", distinct_key=f"campaign:{camp.id}", properties={"campaign_id": str(camp.id), "questionnaire_version_id": str(camp.questionnaire_version_id), "has_org_unit": bool(org_unit_id)})
+    upsert_tenant_health_snapshot(db, camp.tenant_id)
     db.commit()
     return {"status": "ok"}
 
@@ -338,11 +359,6 @@ def campaign_stats(
     user=Depends(require_any_role([ROLE_TENANT_ADMIN, ROLE_CNPJ_MANAGER, ROLE_UNIT_MANAGER])),
     tenant_id: UUID = Depends(tenant_id_from_user),
 ):
-    """Estatísticas de campanha (sem PII).
-
-    Ajuda a UX: mostrar progresso de respostas e se a agregação está liberada (LGPD).
-    """
-
     camp = db.query(Campaign).filter(Campaign.id == campaign_id, Campaign.tenant_id == tenant_id).first()
     if not camp:
         raise NotFound("Campanha não encontrada")
@@ -356,6 +372,7 @@ def campaign_stats(
         "responses": n,
         "min_anon_threshold": min_n,
         "aggregation_allowed": n >= min_n,
+        "require_invitation": _campaign_requires_invitation(camp),
     }
 
 
@@ -366,10 +383,6 @@ def aggregate_by_org_unit(
     user=Depends(require_any_role([ROLE_TENANT_ADMIN, ROLE_CNPJ_MANAGER, ROLE_UNIT_MANAGER])),
     tenant_id: UUID = Depends(tenant_id_from_user),
 ):
-    """Agregação por setor/unidade (org_unit_id) para análises segmentadas.
-
-    LGPD: somente retorna grupos com N >= min_anon_threshold.
-    """
     camp = db.query(Campaign).filter(Campaign.id == campaign_id, Campaign.tenant_id == tenant_id).first()
     if not camp:
         raise NotFound("Campanha não encontrada")
@@ -383,7 +396,6 @@ def aggregate_by_org_unit(
 
     responses = db.query(SurveyResponse).filter(SurveyResponse.campaign_id == camp.id).all()
 
-    # group by org_unit_id
     groups: dict[str, list[dict]] = {}
     for r in responses:
         key = str(r.org_unit_id) if r.org_unit_id else "null"

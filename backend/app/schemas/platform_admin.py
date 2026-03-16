@@ -16,6 +16,8 @@ class PlanAdminOut(BaseModel):
     price_annual: Optional[int] = None
     is_custom_price: bool = False
     stripe_price_id: Optional[str] = None
+    stripe_price_id_monthly: Optional[str] = None
+    stripe_price_id_annual: Optional[str] = None
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -30,6 +32,8 @@ class PlanCreateIn(BaseModel):
     price_annual: Optional[int] = None
     is_custom_price: bool = False
     stripe_price_id: Optional[str] = None
+    stripe_price_id_monthly: Optional[str] = None
+    stripe_price_id_annual: Optional[str] = None
     is_active: bool = True
 
 
@@ -41,6 +45,8 @@ class PlanUpdateIn(BaseModel):
     price_annual: Optional[int] = None
     is_custom_price: Optional[bool] = None
     stripe_price_id: Optional[str] = None
+    stripe_price_id_monthly: Optional[str] = None
+    stripe_price_id_annual: Optional[str] = None
     is_active: Optional[bool] = None
 
 

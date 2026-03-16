@@ -1,5 +1,5 @@
 from __future__ import annotations
-from sqlalchemy import Column, String, ForeignKey, DateTime, JSON
+from sqlalchemy import Column, String, ForeignKey, DateTime, JSON, Boolean, Integer
 from sqlalchemy.orm import relationship
 from app.models.types import GUID
 from datetime import datetime
@@ -21,18 +21,13 @@ class Campaign(Base, UUIDPrimaryKeyMixin, TimestampMixin, TenantScopedMixin):
     )  # setor/unidade (p/ análise segmentada)
     status = Column(String(30), nullable=False, default="draft")  # draft|open|closed
 
-    # Configuração de convites
-    require_invitation = Column(
-        String(5), nullable=False, default="true"
-    )  # Se true, exige token para responder
-    invitation_expires_days = Column(
-        String(5), nullable=False, default="30"
-    )  # Dias até expirar convite
+    # Convites controlados: enterprise = aberto OU tokenizado, nunca híbrido implícito
+    require_invitation = Column(Boolean, nullable=False, default=False)
+    invitation_expires_days = Column(Integer, nullable=False, default=30)
 
     opened_at = Column(DateTime, nullable=True)
     closed_at = Column(DateTime, nullable=True)
 
-    # Relacionamentos
     invitations = relationship(
         "CampaignInvitation", back_populates="campaign", cascade="all, delete-orphan"
     )

@@ -122,13 +122,14 @@ from app.core.config import settings
 
 
 def require_legal_acceptance(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> None:
-    """
-    Gate de conformidade (LGPD/Termos): bloqueia acesso ao console até que o usuário aceite
-    as versões correntes de Termos e Política de Privacidade.
+    """Gate de conformidade (LGPD/Termos).
 
-    Observação: não aplica para admin da plataforma.
+    Em produção/staging deve permanecer ativo. Em dev/test pode ser desligado via configuração
+    para facilitar onboarding técnico e execução da suíte automatizada.
     """
     if user.is_platform_admin:
+        return
+    if not settings.LEGAL_ACCEPTANCE_REQUIRED or settings.ENV in {"dev", "test"}:
         return
     rec = (
         db.query(LegalAcceptance)

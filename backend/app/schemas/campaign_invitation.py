@@ -186,7 +186,7 @@ class InvitationValidateResult(BaseModel):
                 "valid": True,
                 "campaign_id": "b14e9621-4629-4422-b29b-de87cc8d1451",
                 "campaign_name": "Diagnóstico Q1 2026",
-                "questionnaire_title": "NR-1 Psicossocial",
+                "questionnaire_title": "NR-1 Governança e Evidências",
                 "expires_at": "2026-03-12T15:00:00Z",
                 "error": None,
             }

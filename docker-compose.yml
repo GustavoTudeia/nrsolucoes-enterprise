@@ -11,11 +11,21 @@ services:
       - "5432:5432"
     volumes:
       - nr_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nr -d nrsolucoes"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   redis:
     image: redis:7
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
 
   minio:
     image: minio/minio:latest
@@ -28,19 +38,23 @@ services:
       - "9091:9001"
     volumes:
       - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
 
   minio-init:
     image: minio/mc:latest
     depends_on:
-      - minio
+      minio:
+        condition: service_healthy
     entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        mc alias set local http://minio:9000 minioadmin minioadmin &&
-        mc mb -p local/nrsolucoes || true &&
-        echo '[{"AllowedOrigins":["http://localhost:3000"],"AllowedMethods":["GET","PUT","HEAD"],"AllowedHeaders":["*"],"ExposeHeaders":["ETag"],"MaxAgeSeconds":3000}]' > /tmp/cors.json
-        mc cors set local/nrsolucoes /tmp/cors.json || true &&
-        mc ls local/nrsolucoes
+    command: |
+      mc alias set local http://minio:9000 minioadmin minioadmin &&
+      mc mb -p local/nrsolucoes || true &&
+      echo '[{"AllowedOrigins":["http://localhost:3000"],"AllowedMethods":["GET","PUT","HEAD"],"AllowedHeaders":["*"],"ExposeHeaders":["ETag"],"MaxAgeSeconds":3000}]' > /tmp/cors.json &&
+      mc cors set local/nrsolucoes /tmp/cors.json || true
 
   backend:
     build:
@@ -49,26 +63,36 @@ services:
     env_file:
       - ./backend/.env
     depends_on:
-      - db
-      - redis
-      - minio
-      - minio-init
-    command: sh -c "python -c 'from app.db.session import engine; from app.db.base import Base; from app.models import *; Base.metadata.create_all(bind=engine); print(\"Schema created!\")' && alembic upgrade heads && uvicorn app.main:app --host 0.0.0.0 --port 8000"
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    command: >
+      sh -c "python -c 'from app.db.session import engine; from sqlalchemy import text; c=engine.connect(); c.execute(text(\"ALTER TABLE IF EXISTS alembic_version ALTER COLUMN version_num TYPE varchar(128)\")); c.commit(); c.close()' 2>/dev/null; alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips=*"
     ports:
       - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
 
-  # Para dev local, recomenda-se rodar o frontend com `npm run dev` fora do docker.
-  # Caso queira subir o frontend via docker, descomente e ajuste conforme necessário.
-  # frontend:
-  #   build:
-  #     context: ./frontend
-  #     dockerfile: Dockerfile
-  #   env_file:
-  #     - ./frontend/.env.local
-  #   depends_on:
-  #     - backend
-  #   ports:
-  #     - "3000:3000"
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - ./backend/.env
+    depends_on:
+      redis:
+        condition: service_healthy
+      db:
+        condition: service_healthy
+    command: rq worker default --url redis://redis:6379/0
 
 volumes:
   nr_db:

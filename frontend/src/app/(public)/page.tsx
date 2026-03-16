@@ -367,8 +367,8 @@ export default function PublicHome() {
                 <div className="mt-6 space-y-4">
                   {[
                     { metric: "73%", desc: "redução no tempo de consolidação de evidências para auditoria" },
-                    { metric: "4x", desc: "mais agilidade na identificação de riscos psicossociais críticos" },
-                    { metric: "100%", desc: "das campanhas com rastreabilidade e anonimização garantida" },
+                    { metric: "4x", desc: "mais agilidade na identificação de governança e evidências NR-1 críticos" },
+                    { metric: "LGPD", desc: "controles de agregação, trilha e rastreabilidade no fluxo de campanhas" },
                   ].map((r) => (
                     <div key={r.metric} className="flex items-baseline gap-3">
                       <span className="font-display text-2xl font-bold text-primary">{r.metric}</span>

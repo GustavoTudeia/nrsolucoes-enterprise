@@ -8,8 +8,8 @@ def test_enforce_limit_blocks(db):
     t = Tenant(name="T", slug="t-limit", is_active=True)
     db.add(t); db.flush()
     db.add(TenantSettings(tenant_id=t.id, min_anon_threshold=2))
-    db.add(TenantSubscription(tenant_id=t.id, status="active", entitlements_snapshot={"features":{}, "limits":{"cnpjs":1}}))
+    db.add(TenantSubscription(tenant_id=t.id, status="active", entitlements_snapshot={"features":{}, "limits":{"cnpj_max":1}}))
     db.commit()
 
     with pytest.raises(Forbidden):
-        enforce_limit(db, t.id, "cnpjs", current_count=1, increment=1)
+        enforce_limit(db, t.id, "cnpj_max", current_count=1, increment=1)

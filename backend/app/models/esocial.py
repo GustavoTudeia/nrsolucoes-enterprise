@@ -27,6 +27,9 @@ class ESocialS2240Profile(Base, UUIDPrimaryKeyMixin, TimestampMixin, TenantScope
 
     valid_from = Column(DateTime, nullable=True)
     valid_to = Column(DateTime, nullable=True)
+    layout_version = Column(String(20), nullable=False, default="S-1.3")
+    source_reference = Column(String(120), nullable=True)
+    traceability = Column(JSON, nullable=False, default=dict)
 
     is_active = Column(Boolean, default=True, nullable=False)
 
@@ -41,8 +44,10 @@ class ESocialS2210Accident(Base, UUIDPrimaryKeyMixin, TimestampMixin, TenantScop
     description = Column(String(1000), nullable=True)
     location = Column(String(200), nullable=True)
     cat_number = Column(String(60), nullable=True)
+    layout_version = Column(String(20), nullable=False, default="S-1.3")
+    source_reference = Column(String(120), nullable=True)
+    traceability = Column(JSON, nullable=False, default=dict)
 
-    # Campo livre para preencher dados que variam de layout / integradores.
     payload = Column(JSON, nullable=False, default=dict)
 
 
@@ -54,5 +59,8 @@ class ESocialS2220Exam(Base, UUIDPrimaryKeyMixin, TimestampMixin, TenantScopedMi
 
     exam_type = Column(String(80), nullable=True)  # admission|periodic|return|change|dismissal|other
     result = Column(String(200), nullable=True)
+    layout_version = Column(String(20), nullable=False, default="S-1.3")
+    source_reference = Column(String(120), nullable=True)
+    traceability = Column(JSON, nullable=False, default=dict)
 
     payload = Column(JSON, nullable=False, default=dict)

@@ -53,6 +53,8 @@ type FormState = {
   price_annual: string;
   is_custom_price: boolean;
   stripe_price_id: string;
+  stripe_price_id_monthly: string;
+  stripe_price_id_annual: string;
   is_active: boolean;
 };
 
@@ -65,6 +67,8 @@ const emptyForm: FormState = {
   price_annual: "",
   is_custom_price: false,
   stripe_price_id: "",
+  stripe_price_id_monthly: "",
+  stripe_price_id_annual: "",
   is_active: true,
 };
 
@@ -109,6 +113,8 @@ export default function PlatformPlanosPage() {
       price_annual: plan.price_annual != null ? String(plan.price_annual / 100) : "",
       is_custom_price: plan.is_custom_price || false,
       stripe_price_id: plan.stripe_price_id || "",
+      stripe_price_id_monthly: (plan as any).stripe_price_id_monthly || plan.stripe_price_id || "",
+      stripe_price_id_annual: (plan as any).stripe_price_id_annual || "",
       is_active: plan.is_active,
     });
     setShowForm(true);
@@ -157,6 +163,8 @@ export default function PlatformPlanosPage() {
           price_annual: priceAnnual,
           is_custom_price: form.is_custom_price,
           stripe_price_id: form.stripe_price_id || null,
+          stripe_price_id_monthly: form.stripe_price_id_monthly || null,
+          stripe_price_id_annual: form.stripe_price_id_annual || null,
           is_active: form.is_active,
         });
         toast.success("Plano atualizado");
@@ -170,6 +178,8 @@ export default function PlatformPlanosPage() {
           price_annual: priceAnnual,
           is_custom_price: form.is_custom_price,
           stripe_price_id: form.stripe_price_id || null,
+          stripe_price_id_monthly: form.stripe_price_id_monthly || null,
+          stripe_price_id_annual: form.stripe_price_id_annual || null,
           is_active: form.is_active,
         });
         toast.success("Plano criado");
@@ -247,7 +257,7 @@ export default function PlatformPlanosPage() {
         {showForm && (
           <CardContent className="space-y-4">
             {/* Identificação */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Key</Label>
                 <Input
@@ -265,13 +275,19 @@ export default function PlatformPlanosPage() {
                   placeholder="Ex.: Enterprise"
                 />
               </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label>Stripe Price ID</Label>
-                <Input
-                  value={form.stripe_price_id}
-                  onChange={(e) => setForm({ ...form, stripe_price_id: e.target.value })}
-                  placeholder="price_..."
-                />
+                <Label>Stripe Price ID (legado/fallback)</Label>
+                <Input value={form.stripe_price_id} onChange={(e) => setForm({ ...form, stripe_price_id: e.target.value })} placeholder="price_..." />
+              </div>
+              <div className="space-y-2">
+                <Label>Stripe Price ID Mensal</Label>
+                <Input value={form.stripe_price_id_monthly} onChange={(e) => setForm({ ...form, stripe_price_id_monthly: e.target.value })} placeholder="price_monthly_..." />
+              </div>
+              <div className="space-y-2">
+                <Label>Stripe Price ID Anual</Label>
+                <Input value={form.stripe_price_id_annual} onChange={(e) => setForm({ ...form, stripe_price_id_annual: e.target.value })} placeholder="price_annual_..." />
               </div>
             </div>
 

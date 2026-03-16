@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends
 
 from app.api.deps import require_legal_acceptance
+from app.core.config import settings as app_settings
 from app.api.v1 import (
     health,
     auth,
@@ -19,6 +20,7 @@ from app.api.v1 import (
     billing,
     settings,
     reports,
+    inventory,
     employee_portal,
     employee_portal_trainings,
     employee_auth,
@@ -30,9 +32,13 @@ from app.api.v1 import (
     esocial,
     platform_plans,
     platform_subscriptions,
+    platform_finance,
     invitations,
     auth_password,
     trainings,
+    pgr_governance,
+    analytics,
+    test_support,
 )
 
 router = APIRouter(prefix="/api/v1")
@@ -55,7 +61,7 @@ router.include_router(employees.router, tags=["employees"], dependencies=console
 router.include_router(
     questionnaires.router, tags=["questionnaires"], dependencies=console_deps
 )
-router.include_router(campaigns.router, tags=["campaigns"], dependencies=console_deps)
+router.include_router(campaigns.router, tags=["campaigns"])
 router.include_router(risks.router, tags=["risks"], dependencies=console_deps)
 router.include_router(
     action_plans.router, tags=["action-plans"], dependencies=console_deps
@@ -66,6 +72,9 @@ router.include_router(billing.router, tags=["billing"], dependencies=console_dep
 router.include_router(billing.public_router, tags=["billing"])  # plans + webhook (sem auth)
 router.include_router(settings.router, tags=["settings"], dependencies=console_deps)
 router.include_router(reports.router, tags=["reports"], dependencies=console_deps)
+router.include_router(analytics.router, tags=["analytics"], dependencies=console_deps)
+router.include_router(pgr_governance.router, tags=["pgr-governance"], dependencies=console_deps)
+router.include_router(inventory.router, tags=["inventory"], dependencies=console_deps)
 router.include_router(affiliates.router, tags=["affiliates"], dependencies=console_deps)
 router.include_router(audit.router, tags=["audit"], dependencies=console_deps)
 router.include_router(esocial.router, tags=["esocial"], dependencies=console_deps)
@@ -78,6 +87,10 @@ router.include_router(
 router.include_router(
     platform_subscriptions.router, tags=["platform-subscriptions"], dependencies=console_deps
 )
+router.include_router(
+    platform_finance.router, tags=["platform-finance"], dependencies=console_deps
+)
+router.include_router(analytics.platform_router, tags=["platform-analytics"], dependencies=console_deps)
 
 # Invitations (misto: alguns endpoints públicos para aceitar convite)
 router.include_router(invitations.router, tags=["invitations"])
@@ -89,7 +102,12 @@ router.include_router(
 )
 router.include_router(employee_auth.router, tags=["employee-auth"])
 router.include_router(public.router, tags=["public"])
+router.include_router(analytics.public_router, tags=["analytics"])
 router.include_router(public_affiliates.router, tags=["public-affiliates"])
 
 # Campaign Invitations (misto: admin endpoints com aceite, public endpoints sem)
 router.include_router(campaign_invitations.router, tags=["campaign-invitations"])
+
+
+if app_settings.ENABLE_E2E_TEST_SUPPORT or app_settings.ENV == "test":
+    router.include_router(test_support.router, tags=["test-support"])

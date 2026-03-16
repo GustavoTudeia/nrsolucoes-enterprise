@@ -338,7 +338,7 @@ def publish_version(
 
 @router.get("/published", response_model=QuestionnaireVersionDetailOut)
 def get_latest_published_by_key(
-    key: str = Query(..., description="template key (ex.: nr1_psicossocial)"),
+    key: str = Query(..., description="template key (ex.: nr1_governanca_evidencias)"),
     db: Session = Depends(get_db),
     user=Depends(get_current_user),
 ):

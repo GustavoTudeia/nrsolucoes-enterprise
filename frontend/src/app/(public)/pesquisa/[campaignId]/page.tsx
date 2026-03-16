@@ -171,6 +171,23 @@ export default function PesquisaPage() {
     );
   }
 
+  if (data?.require_invitation && !token) {
+    return (
+      <div className="container py-10 max-w-lg mx-auto">
+        <Card className="border-amber-200">
+          <CardHeader className="text-center">
+            <div className="mx-auto w-12 h-12 rounded-full bg-amber-100 flex items-center justify-center mb-4">
+              <AlertTriangle className="h-6 w-6 text-amber-600" />
+            </div>
+            <CardTitle className="text-amber-700">Convite obrigatório</CardTitle>
+            <CardDescription>Esta campanha exige convite individual com token válido.</CardDescription>
+          </CardHeader>
+          <CardContent className="text-center text-sm text-muted-foreground">Solicite o link individual ao RH ou ao responsável pela campanha.</CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   // Campaign not found
   if (!data) {
     return (

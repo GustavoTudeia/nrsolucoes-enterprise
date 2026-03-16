@@ -203,8 +203,8 @@ export default function RiscoPage() {
   return (
     <div className="container py-8 space-y-6">
       <PageHeader
-        title="Avaliacao de Riscos Psicossociais"
-        description="Classificacao de risco conforme NR-1 com base em campanhas de diagnostico."
+        title="Avaliação de Riscos NR-1"
+        description="Classificação de risco conforme NR-1 com base em governança, evidências e inventário de perigos."
       />
 
       {/* Summary cards */}
@@ -273,7 +273,7 @@ export default function RiscoPage() {
             </CardTitle>
             <CardDescription>
               Media ponderada de todas as avaliacoes da campanha selecionada.
-              Scores mais altos indicam maior nivel de risco.
+              Scores mais altos indicam melhor maturidade de controle e menor risco residual.
             </CardDescription>
           </CardHeader>
           <CardContent>

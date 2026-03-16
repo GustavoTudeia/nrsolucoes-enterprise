@@ -570,8 +570,13 @@ def reset_user_password(
     if not target.email:
         raise BadRequest("Usuário não possui email cadastrado")
 
-    # TODO: Enviar email de reset
-    # email_service.send_password_reset(target.email)
+    import secrets
+    from datetime import timedelta
+    target.password_reset_token = secrets.token_urlsafe(32)
+    target.password_reset_expires = datetime.utcnow() + timedelta(minutes=getattr(settings, "PASSWORD_RESET_TOKEN_TTL_MINUTES", 30))
+    reset_url = f"{settings.FRONTEND_URL}/resetar-senha?token={target.password_reset_token}"
+    email_service.queue_password_reset(to_email=target.email, reset_url=reset_url, user_name=target.full_name or target.email)
+    db.add(target)
 
     db.add(
         AuthAuditLog.log_password_reset_request(

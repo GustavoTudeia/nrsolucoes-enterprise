@@ -7,17 +7,28 @@ from uuid import UUID
 from app.core.errors import Forbidden
 from app.services.entitlements import resolve_entitlements
 
+LIMIT_ALIASES = {
+    "cnpjs": "cnpj_max",
+    "cnpj": "cnpj_max",
+    "campaigns_per_month": "campaigns_max",
+    "campaigns": "campaigns_max",
+    "users": "users_max",
+    "employees": "employees_max",
+}
+
+
 def enforce_limit(db: Session, tenant_id: UUID, limit_key: str, current_count: int, increment: int = 1) -> None:
     """Bloqueia criação quando um limite do plano é excedido.
 
     Se o limite não estiver definido (None/ausente), considera ilimitado.
     """
     ent = resolve_entitlements(db, tenant_id)
-    limit = ent.limit_int(limit_key, None)
+    canonical_key = LIMIT_ALIASES.get(limit_key, limit_key)
+    limit = ent.limit_int(canonical_key, None)
     if limit is None:
         return
     if current_count + increment > limit:
-        raise Forbidden(f"Limite do plano excedido: {limit_key} ({current_count}/{limit})")
+        raise Forbidden(f"Limite do plano excedido: {canonical_key} ({current_count}/{limit})")
 
 def month_range(dt: datetime) -> tuple[datetime, datetime]:
     start = dt.replace(day=1, hour=0, minute=0, second=0, microsecond=0)

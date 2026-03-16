@@ -34,6 +34,8 @@ from app.models.risk import RiskAssessment
 from app.models.action_plan import ActionPlan, ActionItem, ActionEvidence
 from app.models.training import ActionItemEnrollment, TrainingCertificate
 from app.models.audit_event import AuditEvent
+from app.models.inventory import RiskInventoryItem
+from app.models.pgr_governance import PGRDocumentApproval, ErgonomicAssessment
 
 
 class PGRDossierService:
@@ -217,6 +219,46 @@ class PGRDossierService:
                     for c in campaigns
                 ],
             },
+            "inventory": [
+                {
+                    "id": str(i.id),
+                    "cnpj_id": str(i.cnpj_id),
+                    "org_unit_id": str(i.org_unit_id) if i.org_unit_id else None,
+                    "hazard_group": i.hazard_group,
+                    "hazard_name": i.hazard_name,
+                    "process_name": i.process_name,
+                    "activity_name": i.activity_name,
+                    "risk_score": i.risk_score,
+                    "risk_level": i.risk_level,
+                    "status": i.status,
+                    "approved_at": i.approved_at.isoformat() + "Z" if i.approved_at else None,
+                }
+                for i in inventory_items
+            ],
+            "formal_approvals": [
+                {
+                    "id": str(a.id),
+                    "document_scope": a.document_scope,
+                    "version_label": a.version_label,
+                    "status": a.status,
+                    "approved_at": a.approved_at.isoformat() + "Z",
+                    "snapshot_hash": a.snapshot_hash,
+                    "inventory_item_count": a.inventory_item_count,
+                }
+                for a in approvals
+            ],
+            "ergonomics": [
+                {
+                    "id": str(e.id),
+                    "assessment_type": e.assessment_type,
+                    "title": e.title,
+                    "status": e.status,
+                    "process_name": e.process_name,
+                    "activity_name": e.activity_name,
+                    "approved_at": e.approved_at.isoformat() + "Z" if e.approved_at else None,
+                }
+                for e in ergonomics
+            ],
             "risk_assessments": [
                 {
                     "id": str(r.id),

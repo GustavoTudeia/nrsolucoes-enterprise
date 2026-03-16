@@ -1,6 +1,6 @@
 from app.models.types import GUID
 from app.models.tenant import Tenant, TenantSettings, TenantSSOConfig
-from app.models.billing import Plan, TenantSubscription
+from app.models.billing import Plan, TenantSubscription, BillingProfile, BillingInvoice, PlatformBillingConfig, TenantOnboarding
 from app.models.user import User, Role, UserRoleScope
 from app.models.org import CNPJ, OrgUnit
 from app.models.employee import Employee
@@ -27,3 +27,11 @@ from app.models.sso import SSOLoginAttempt
 from app.models.user_invitation import UserInvitation
 from app.models.auth_token import AuthToken
 from app.models.auth_audit_log import AuthAuditLog
+
+from app.models.inventory import HazardCatalogItem, RiskInventoryItem
+
+from app.models.pgr_governance import PGRDocumentApproval, ErgonomicAssessment
+
+from app.models.analytics import AnalyticsEvent, TenantHealthSnapshot, TenantNudge
+
+from app.models.refresh_session import RefreshSession

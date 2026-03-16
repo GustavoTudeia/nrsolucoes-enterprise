@@ -1,6 +1,6 @@
 """add_plan_pricing_columns
 
-Revision ID: 20260313_pricing
+Revision ID: 20260313_plan_pricing
 Revises: 20260306_training
 Create Date: 2026-03-13
 
@@ -14,8 +14,8 @@ from alembic import op
 import sqlalchemy as sa
 
 
-revision = "20260313_pricing"
-down_revision = ("20260306_training", "0003_campaign_invitations")
+revision = "20260313_plan_pricing"
+down_revision = "20260306_training"
 branch_labels = None
 depends_on = None
 

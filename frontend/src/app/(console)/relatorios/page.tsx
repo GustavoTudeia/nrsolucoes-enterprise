@@ -472,7 +472,7 @@ export default function RelatoriosPage() {
                 <Card>
                   <CardHeader className="pb-3">
                     <CardTitle className="text-base">Scores por Dimensão (média)</CardTitle>
-                    <CardDescription>Média das avaliações de risco por dimensão psicossocial.</CardDescription>
+                    <CardDescription>Média das avaliações de risco por dimensão de governança, evidências e perigos.</CardDescription>
                   </CardHeader>
                   <CardContent className="space-y-2">
                     {dimensionScores.map(d => (

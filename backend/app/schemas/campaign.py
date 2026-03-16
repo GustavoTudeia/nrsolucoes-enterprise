@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from uuid import UUID
 from typing import Optional, Dict, Any
 from datetime import datetime
@@ -11,16 +11,19 @@ class CampaignCreate(BaseModel):
     cnpj_id: UUID
     org_unit_id: Optional[UUID] = None
     questionnaire_version_id: UUID
+    require_invitation: bool = False
+    invitation_expires_days: int = Field(default=30, ge=1, le=365)
 
 
 class CampaignOut(BaseModel):
-    # Mantido para compatibilidade (create/open/close)
     id: UUID
     name: str
     cnpj_id: UUID
     org_unit_id: Optional[UUID] = None
     questionnaire_version_id: UUID
     status: str
+    require_invitation: bool = False
+    invitation_expires_days: int = 30
 
 
 class CampaignDetailOut(BaseModel):
@@ -33,12 +36,13 @@ class CampaignDetailOut(BaseModel):
     questionnaire_version_id: UUID
     status: str
     response_count: int = 0
+    require_invitation: bool = False
+    invitation_expires_days: int = 30
     created_at: datetime
     opened_at: Optional[datetime] = None
     closed_at: Optional[datetime] = None
 
 
 class SurveyResponseSubmit(BaseModel):
-    # opcional: se a campanha estiver em nível de CNPJ, o frontend pode informar o setor/unidade
     org_unit_id: Optional[UUID] = None
     answers: Dict[str, Any]

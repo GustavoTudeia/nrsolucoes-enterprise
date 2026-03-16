@@ -13,6 +13,7 @@ from app.core.config import settings
 from app.api.deps import require_platform_admin, get_request_meta
 from app.core.audit import make_audit_event
 from app.services.template_packs import apply_pack_to_tenant
+from app.services.finance_service import get_or_create_billing_profile, ensure_onboarding_row
 
 router = APIRouter(prefix="/tenants")
 
@@ -78,6 +79,13 @@ def create_tenant(
             entitlements_snapshot={"features": {"LMS": True}, "limits": {}},
         )
     db.add(sub)
+
+    billing_profile = get_or_create_billing_profile(db, tenant.id)
+    billing_profile.legal_name = tenant.name
+    billing_profile.trade_name = tenant.name
+    db.add(billing_profile)
+
+    ensure_onboarding_row(db, tenant.id)
 
     # Onboarding: aplica automaticamente o pack padrão de templates (NR-1) ao novo tenant.
     pack_key = (getattr(settings, 'AUTO_APPLY_TEMPLATE_PACK_KEY', '') or '').strip()

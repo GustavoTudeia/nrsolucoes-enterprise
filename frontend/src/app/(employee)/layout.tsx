@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { ModeToggle } from "@/components/mode-toggle";
 import { Button } from "@/components/ui/button";
+import { EmployeeAnalyticsBridge } from "@/components/analytics/employee-analytics-bridge";
 
 export default function EmployeeLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -21,6 +22,7 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
           </div>
         </div>
       </header>
+      <EmployeeAnalyticsBridge />
       <main className="flex-1">{children}</main>
       <footer className="border-t">
         <div className="container py-6 text-xs text-muted-foreground">

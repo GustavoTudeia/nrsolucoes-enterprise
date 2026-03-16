@@ -559,7 +559,7 @@ function InvitationDialog({
 export default function CampanhasPage() {
   const { scope } = useConsole();
 
-  const [name, setName] = useState("Campanha NR-1 – Psicossocial");
+  const [name, setName] = useState("Campanha NR-1 – Governança e Evidências");
   const [unitId, setUnitId] = useState<string>("");
 
   const [units, setUnits] = useState<OrgUnitOut[]>([]);
@@ -708,7 +708,7 @@ export default function CampanhasPage() {
     <div className="container py-8 space-y-6">
       <PageHeader
         title="Campanhas"
-        description="Diagnostico psicossocial NR-1: crie campanhas, gere convites e acompanhe respostas (LGPD-compliant)."
+        description="Governança/evidências NR-1: crie campanhas, gere convites controlados e acompanhe respostas com LGPD."
       />
 
       {/* Summary cards */}

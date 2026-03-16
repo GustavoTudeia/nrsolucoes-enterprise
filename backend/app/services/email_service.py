@@ -7,25 +7,32 @@ from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from typing import Optional
 from datetime import datetime, timedelta
+import logging
 
 from app.core.config import settings
+from app.workers.queue import queue as rq_queue
+from app.core.metrics import metrics_registry
+
+logger = logging.getLogger(__name__)
 
 
 class EmailService:
-    """Serviço de email usando SMTP."""
+    """Serviço de email usando SMTP, com fila opcional via RQ."""
 
-    def __init__(self):
+    def __init__(self, force_sync: bool = False):
+        self.force_sync = force_sync
         self.host = settings.SMTP_HOST
         self.port = settings.SMTP_PORT
         self.username = settings.SMTP_USERNAME
         self.password = settings.SMTP_PASSWORD
         self.from_email = settings.SMTP_FROM_EMAIL
         self.from_name = settings.SMTP_FROM_NAME
+        self.delivery_mode = (settings.EMAIL_DELIVERY_MODE or "sync").lower()
 
     def _send(self, to_email: str, subject: str, html_body: str, text_body: Optional[str] = None) -> bool:
         """Envia email via SMTP."""
         if not all([self.host, self.port, self.username, self.password]):
-            print(f"[EMAIL] SMTP não configurado. Email para {to_email}: {subject}")
+            logger.warning("SMTP não configurado. Email não enviado para %s: %s", to_email, subject)
             return False
 
         try:
@@ -43,12 +50,44 @@ class EmailService:
                 server.login(self.username, self.password)
                 server.sendmail(self.from_email, to_email, msg.as_string())
 
-            print(f"[EMAIL] Enviado para {to_email}: {subject}")
+            logger.info("Email enviado para %s: %s", to_email, subject)
+            metrics_registry.inc_counter("email_sent_total", {"channel": "smtp"})
             return True
 
         except Exception as e:
-            print(f"[EMAIL] Erro ao enviar para {to_email}: {e}")
+            logger.exception("Erro ao enviar email para %s: %s", to_email, e)
+            metrics_registry.inc_counter("email_failed_total", {"channel": "smtp"})
             return False
+
+    def _enqueue(self, kind: str, payload: dict) -> bool:
+        if self.force_sync or self.delivery_mode != "worker":
+            return False
+        try:
+            rq_queue.enqueue("app.workers.jobs.send_email_job", kind, payload)
+            metrics_registry.inc_counter("email_enqueued_total", {"kind": kind})
+            return True
+        except Exception as exc:
+            logger.warning("Falha ao enfileirar email %s: %s", kind, exc)
+            metrics_registry.inc_counter("email_enqueue_failed_total", {"kind": kind})
+            return False
+
+    def queue_password_reset(self, **payload) -> bool:
+        return self._enqueue("password_reset", payload) or self.send_password_reset(**payload)
+
+    def queue_otp_code(self, **payload) -> bool:
+        return self._enqueue("otp_code", payload) or self.send_otp_code(**payload)
+
+    def queue_magic_link(self, **payload) -> bool:
+        return self._enqueue("magic_link", payload) or self.send_magic_link(**payload)
+
+    def queue_billing_invoice(self, **payload) -> bool:
+        return self._enqueue("billing_invoice", payload) or self.send_billing_invoice(**payload)
+
+    def queue_operational_nudge(self, **payload) -> bool:
+        return self._enqueue("operational_nudge", payload) or self.send_operational_nudge(**payload)
+
+    def queue_invitation(self, **payload) -> bool:
+        return self._enqueue("invitation", payload) or self.send_invitation(**payload)
 
     def send_password_reset(self, to_email: str, reset_url: str, user_name: Optional[str] = None) -> bool:
         """Envia email de recuperação de senha."""
@@ -212,6 +251,93 @@ class EmailService:
         NR Soluções - Plataforma de Gestão SST
         """
         
+        return self._send(to_email, subject, html_body, text_body)
+
+
+    def send_billing_invoice(
+        self,
+        to_email: str,
+        customer_name: str,
+        invoice_number: str,
+        amount_cents: int,
+        currency: str,
+        invoice_url: str | None,
+        payment_status: str,
+        fiscal_status: str,
+    ) -> bool:
+        """Envia e-mail de cobrança / documento fiscal."""
+        cur = (currency or "BRL").upper()
+        amount = amount_cents / 100.0
+        subject = f"Sua cobrança / nota fiscal - {invoice_number}"
+        cta = (
+            f'<p style="text-align: center;"><a href="{invoice_url}" class="button">Abrir documento</a></p>'
+            if invoice_url else ""
+        )
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="utf-8">
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ background: #0f766e; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }}
+                .content {{ background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }}
+                .button {{ display: inline-block; background: #0f766e; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; margin: 20px 0; }}
+                .box {{ background: white; padding: 16px; border-radius: 8px; margin: 16px 0; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header"><h1>Financeiro NR Soluções</h1></div>
+                <div class="content">
+                    <p>Olá, <strong>{customer_name}</strong>!</p>
+                    <p>Seu documento financeiro foi atualizado.</p>
+                    <div class="box">
+                        <p><strong>Número:</strong> {invoice_number}</p>
+                        <p><strong>Valor:</strong> {cur} {amount:,.2f}</p>
+                        <p><strong>Status do pagamento:</strong> {payment_status}</p>
+                        <p><strong>Status fiscal:</strong> {fiscal_status}</p>
+                    </div>
+                    {cta}
+                    <p><small>Este e-mail foi gerado automaticamente pelo módulo financeiro da plataforma.</small></p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        text_body = f"""
+        Olá, {customer_name}!
+
+        Seu documento financeiro foi atualizado.
+        Número: {invoice_number}
+        Valor: {cur} {amount:,.2f}
+        Status do pagamento: {payment_status}
+        Status fiscal: {fiscal_status}
+        Documento: {invoice_url or '-'}
+        """
+        return self._send(to_email, subject, html_body, text_body)
+
+    def send_operational_nudge(self, to_email: str, title: str, message: str, cta_label: str | None = None, cta_url: str | None = None, tenant_name: str | None = None) -> bool:
+        subject = f"Ação recomendada - {title}"
+        cta = f'<p style="text-align:center;"><a href="{cta_url}" class="button">{cta_label or "Abrir plataforma"}</a></p>' if cta_url else ""
+        html_body = f"""
+        <!DOCTYPE html>
+        <html><head><meta charset="utf-8"><style>
+        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+        .header {{ background: #1d4ed8; color: white; padding: 20px; text-align: center; border-radius: 8px 8px 0 0; }}
+        .content {{ background: #f9fafb; padding: 30px; border-radius: 0 0 8px 8px; }}
+        .button {{ display: inline-block; background: #1d4ed8; color: white; padding: 14px 28px; text-decoration: none; border-radius: 6px; margin: 20px 0; }}
+        .box {{ background: white; padding: 16px; border-radius: 8px; margin: 16px 0; }}
+        </style></head><body><div class="container"><div class="header"><h1>{title}</h1></div><div class="content">
+        <p>{tenant_name or 'Sua organização'} precisa de atenção em um fluxo importante da plataforma.</p>
+        <div class="box">{message}</div>
+        {cta}
+        <p><small>Este aviso foi gerado automaticamente para apoiar ativação, retenção e governança contínua.</small></p>
+        </div></div></body></html>
+        """
+        text_body = f"{title}\n\n{message}\n\n{cta_url or ''}"
         return self._send(to_email, subject, html_body, text_body)
 
     def send_invitation(self, to_email: str, invite_url: str, tenant_name: str, role_name: str, invited_by: str) -> bool:

@@ -27,9 +27,11 @@ from app.db.session import get_db
 from app.models.action_plan import ActionPlan, ActionItem
 from app.models.training import ActionItemEnrollment, TrainingCertificate
 from app.models.audit_event import AuditEvent
+from app.models.pgr_governance import PGRDocumentApproval, ErgonomicAssessment
 from app.models.campaign import Campaign, SurveyResponse
 from app.models.employee import Employee
 from app.models.org import CNPJ, OrgUnit
+from app.models.inventory import RiskInventoryItem
 from app.models.risk import RiskAssessment
 from app.models.tenant import TenantSettings
 from app.services.pgr_dossier_pdf import generate_pgr_dossier_pdf
@@ -241,6 +243,9 @@ def get_readiness(
     has_campaign = db.query(Campaign).filter(Campaign.tenant_id == tenant_id, Campaign.status == "closed").count() > 0
     has_risk = db.query(RiskAssessment).filter(RiskAssessment.tenant_id == tenant_id).count() > 0
     has_action_plan = db.query(ActionPlan).filter(ActionPlan.tenant_id == tenant_id).count() > 0
+    has_inventory = db.query(RiskInventoryItem).filter(RiskInventoryItem.tenant_id == tenant_id, RiskInventoryItem.status == "approved").count() > 0
+    has_formal_pgr = db.query(PGRDocumentApproval).filter(PGRDocumentApproval.tenant_id == tenant_id, PGRDocumentApproval.status == "active").count() > 0
+    has_ergonomics = db.query(ErgonomicAssessment).filter(ErgonomicAssessment.tenant_id == tenant_id, ErgonomicAssessment.status == "approved").count() > 0
 
     # Training readiness
     educational_items = db.query(ActionItem).filter(
@@ -262,7 +267,10 @@ def get_readiness(
         {"key": "org_structure", "label": "Estrutura organizacional", "done": has_cnpj and has_org_units and has_employees, "description": "CNPJ, unidades e colaboradores cadastrados"},
         {"key": "diagnostic", "label": "Diagnóstico realizado", "done": has_campaign, "description": "Ao menos uma campanha de pesquisa encerrada"},
         {"key": "risk_assessment", "label": "Avaliação de riscos", "done": has_risk, "description": "Riscos classificados a partir do diagnóstico"},
+        {"key": "risk_inventory", "label": "Inventário NR-1 aprovado", "done": has_inventory, "description": "Itens do inventário aprovados e rastreáveis"},
+        {"key": "pgr_signoff", "label": "Formalização do PGR", "done": has_formal_pgr, "description": "Versão formal do inventário/PGR aprovada por responsável"},
         {"key": "action_plan", "label": "Plano de ação", "done": has_action_plan, "description": "Plano de ação criado com itens de melhoria"},
+        {"key": "ergonomics", "label": "AEP/AET (quando aplicável)", "done": has_ergonomics, "description": "Avaliações ergonômicas aprovadas quando NR-17 se aplica"},
         {"key": "training", "label": "Capacitação", "done": has_training, "description": "Treinamentos concluídos por colaboradores"},
         {"key": "certificates", "label": "Certificados emitidos", "done": has_certificates, "description": "Certificados gerados para treinamentos concluídos"},
     ]

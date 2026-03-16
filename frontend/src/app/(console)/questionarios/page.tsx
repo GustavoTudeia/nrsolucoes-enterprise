@@ -81,14 +81,14 @@ export default function QuestionariosPage() {
   const [selectedVersionId, setSelectedVersionId] = useState("");
 
   // Builder state
-  const [title, setTitle] = useState("NR-1 - Questionario Psicossocial");
+  const [title, setTitle] = useState("NR-1 - Questionário de Governança e Evidências");
   const [dimensions, setDimensions] = useState<Dimension[]>(DEFAULT_DIMENSIONS);
   const [questions, setQuestions] = useState<Question[]>(DEFAULT_QUESTIONS);
   const [jsonText, setJsonText] = useState("");
 
   // Template create
-  const [tplKey, setTplKey] = useState("nr1_psicossocial");
-  const [tplName, setTplName] = useState("NR-1 Psicossocial");
+  const [tplKey, setTplKey] = useState("nr1_governanca_evidencias");
+  const [tplName, setTplName] = useState("NR-1 Governança e Evidências");
   const [tplDesc, setTplDesc] = useState("Template parametrizavel para diagnostico setorizado com agregacao LGPD.");
   const [tplPlatform, setTplPlatform] = useState(false);
 
@@ -582,12 +582,12 @@ function TemplatesTab({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Key (identificador unico) *</Label>
-                <Input value={tplKey} onChange={(e) => setTplKey(e.target.value)} placeholder="nr1_psicossocial" />
+                <Input value={tplKey} onChange={(e) => setTplKey(e.target.value)} placeholder="nr1_governanca_evidencias" />
                 <p className="text-xs text-muted-foreground">Gerado automaticamente: {safeKey(tplKey)}</p>
               </div>
               <div className="space-y-2">
                 <Label>Nome *</Label>
-                <Input value={tplName} onChange={(e) => setTplName(e.target.value)} placeholder="NR-1 Psicossocial" />
+                <Input value={tplName} onChange={(e) => setTplName(e.target.value)} placeholder="NR-1 Governança e Evidências" />
               </div>
               <div className="space-y-2 md:col-span-2">
                 <Label>Descricao</Label>
@@ -754,7 +754,7 @@ function BuilderTab({
         <CardContent className="pt-6">
           <div className="space-y-2">
             <Label className="font-medium">Titulo do Questionario</Label>
-            <Input value={title} onChange={(e) => setTitle(e.target.value)} className="text-lg" placeholder="Ex: NR-1 - Questionario Psicossocial" />
+            <Input value={title} onChange={(e) => setTitle(e.target.value)} className="text-lg" placeholder="Ex: NR-1 - Questionário de Governança e Evidências" />
           </div>
         </CardContent>
       </Card>

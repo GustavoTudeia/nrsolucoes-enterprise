@@ -7,7 +7,8 @@ from sqlalchemy.orm import Session
 
 from app.core.security import hash_password
 from app.models.user import Role, User, UserRoleScope
-from app.models.billing import Plan
+from app.models.billing import Plan, PlatformBillingConfig
+from app.models.inventory import HazardCatalogItem
 
 DEFAULT_ROLES = [
     ("PLATFORM_SUPER_ADMIN", "Platform Super Admin"),
@@ -30,6 +31,7 @@ DEFAULT_PLANS = [
             "QUESTIONNAIRES": True,
             "LMS": True,
             "RISK_MAP": False,
+            "RISK_INVENTORY": False,
             "ACTION_PLANS": False,
             "REPORTS": False,
             # Conformidade
@@ -57,6 +59,7 @@ DEFAULT_PLANS = [
             "QUESTIONNAIRES": True,
             "LMS": True,
             "RISK_MAP": True,
+            "RISK_INVENTORY": True,
             "ACTION_PLANS": True,
             "REPORTS": True,
             # Conformidade
@@ -84,6 +87,7 @@ DEFAULT_PLANS = [
             "QUESTIONNAIRES": True,
             "LMS": True,
             "RISK_MAP": True,
+            "RISK_INVENTORY": True,
             "ACTION_PLANS": True,
             "REPORTS": True,
             # Conformidade
@@ -111,6 +115,7 @@ DEFAULT_PLANS = [
             "QUESTIONNAIRES": True,
             "LMS": True,
             "RISK_MAP": True,
+            "RISK_INVENTORY": True,
             "ACTION_PLANS": True,
             "REPORTS": True,
             # Conformidade
@@ -151,6 +156,11 @@ def seed_platform_defaults(db: Session) -> None:
             ))
     db.commit()
 
+    cfg = db.query(PlatformBillingConfig).filter(PlatformBillingConfig.key == "default").first()
+    if not cfg:
+        db.add(PlatformBillingConfig(key="default", provider_type="manual", provider_environment="sandbox", auto_issue_on_payment=False, auto_email_invoice=True, send_boleto_pdf=True))
+        db.commit()
+
 
     # Templates & Packs (biblioteca oficial)
     from datetime import datetime as _dt
@@ -162,9 +172,32 @@ def seed_platform_defaults(db: Session) -> None:
     # 1) Questionários oficiais (NR-1 e NR-17) - idempotente por (tenant_id is NULL, key)
     default_questionnaires = [
         {
+            "key": "NR1_INVENTARIO_RISCOS_GERAL",
+            "name": "NR-1 • Inventário Base de Perigos e Controles",
+            "description": "Mapeamento amplo de perigos/riscos para apoiar o inventário do PGR.",
+            "content": {
+                "dimensions": [
+                    {"key": "physical", "name": "Físicos"},
+                    {"key": "chemical", "name": "Químicos"},
+                    {"key": "biological", "name": "Biológicos"},
+                    {"key": "ergonomic", "name": "Ergonômicos"},
+                    {"key": "accident", "name": "Acidentes/Mecânicos"},
+                    {"key": "psychosocial", "name": "Psicossociais"}
+                ],
+                "questions": [
+                    {"id": "g1", "text": "Há exposição relevante a ruído, calor, vibração ou radiação?", "dimension": "physical", "weight": 1, "scale_min": 1, "scale_max": 5},
+                    {"id": "g2", "text": "Há contato ou manipulação de agentes químicos com controles insuficientes?", "dimension": "chemical", "weight": 1, "scale_min": 1, "scale_max": 5},
+                    {"id": "g3", "text": "Há exposição potencial a agentes biológicos?", "dimension": "biological", "weight": 1, "scale_min": 1, "scale_max": 5},
+                    {"id": "g4", "text": "Existem exigências ergonômicas relevantes no posto de trabalho?", "dimension": "ergonomic", "weight": 1, "scale_min": 1, "scale_max": 5},
+                    {"id": "g5", "text": "Há risco de queda, prensamento, choque ou acidente operacional?", "dimension": "accident", "weight": 1, "scale_min": 1, "scale_max": 5},
+                    {"id": "g6", "text": "Há sinais de sobrecarga, assédio, conflito ou risco psicossocial?", "dimension": "psychosocial", "weight": 1, "scale_min": 1, "scale_max": 5}
+                ]
+            },
+        },
+        {
             "key": "NR1_GRO_PGR_DIAGNOSTICO",
-            "name": "NR-1 • Diagnóstico GRO/PGR (Maturidade)",
-            "description": "Questionário base para avaliar maturidade de GRO/PGR e governança de SST.",
+            "name": "NR-1 • Diagnóstico de Governança e Evidências",
+            "description": "Questionário base para avaliar governança, evidências, inventário de riscos e controles do PGR.",
             "content": {
                 "dimensions": [
                     {"key": "governance", "name": "Governança e responsabilidade"},
@@ -241,6 +274,12 @@ def seed_platform_defaults(db: Session) -> None:
 
     # 2) Conteúdos oficiais (LMS) - idempotente por (tenant_id is NULL, title)
     default_contents = [
+        {
+            "title": "Biblioteca • Perigos, controles e hierarquia de medidas",
+            "description": "Conteúdo base sobre grupos de riscos NR-1 e controles por hierarquia.",
+            "content_type": "link",
+            "url": "https://www.gov.br/trabalho-e-emprego/pt-br",
+        },
         {
             "title": "NR-1 • Introdução ao GRO/PGR",
             "description": "Conteúdo base para onboarding de gestores e equipes sobre GRO/PGR.",
@@ -339,6 +378,26 @@ def seed_platform_defaults(db: Session) -> None:
             order += 10
 
     db.commit()
+
+    # 4) Biblioteca oficial de perigos/controles NR-1 / NR-17
+    default_hazards = [
+        {"code": "PHY_NOISE", "hazard_group": "physical", "name": "Ruído ocupacional", "description": "Exposição a níveis de ruído acima do conforto/limites aplicáveis.", "legal_basis": "NR-1/NR-15", "control_suggestions": ["medições periódicas", "enclausuramento", "manutenção", "protetor auricular"], "default_evidence_requirements": ["laudo/medição", "registro de manutenção", "treinamento"]},
+        {"code": "PHY_HEAT", "hazard_group": "physical", "name": "Calor", "description": "Exposição a calor ou desconforto térmico relevante.", "legal_basis": "NR-1/NR-15", "control_suggestions": ["ventilação", "hidratação", "rodízio", "monitoramento"], "default_evidence_requirements": ["medições", "procedimento", "registros"]},
+        {"code": "CHEM_SOLVENT", "hazard_group": "chemical", "name": "Solventes e vapores", "description": "Contato ou inalação de agentes químicos.", "legal_basis": "NR-1/NR-15", "control_suggestions": ["ventilação/exaustão", "substituição de produto", "EPI", "FISPQ"], "default_evidence_requirements": ["FISPQ", "inventário químico", "treinamento"]},
+        {"code": "BIO_CONTACT", "hazard_group": "biological", "name": "Contato biológico", "description": "Exposição a material biológico ou superfícies contaminadas.", "legal_basis": "NR-1/NR-32", "control_suggestions": ["higienização", "barreiras", "vacinação", "procedimentos"], "default_evidence_requirements": ["POP", "registro de vacinação", "treinamento"]},
+        {"code": "ERG_POSTURE", "hazard_group": "ergonomic", "name": "Postura inadequada", "description": "Posturas forçadas, mobiliário inadequado ou esforço estático.", "legal_basis": "NR-1/NR-17", "control_suggestions": ["ajuste de posto", "cadeira/mesa adequadas", "pausas", "treinamento"], "default_evidence_requirements": ["checklist ergonômico", "fotos do posto", "treinamento"]},
+        {"code": "ERG_REPETITIVE", "hazard_group": "ergonomic", "name": "Repetitividade", "description": "Movimentos repetitivos e sobrecarga musculoesquelética.", "legal_basis": "NR-1/NR-17", "control_suggestions": ["rodízio", "pausas", "redesenho da tarefa"], "default_evidence_requirements": ["análise da atividade", "plano de ação"]},
+        {"code": "ACC_FALL", "hazard_group": "accident", "name": "Queda / escorregamento", "description": "Queda ao mesmo nível ou em desnível.", "legal_basis": "NR-1", "control_suggestions": ["sinalização", "organização", "EPC", "inspeções"], "default_evidence_requirements": ["checklists", "fotos", "registros de inspeção"]},
+        {"code": "ACC_MECH", "hazard_group": "accident", "name": "Partes móveis / prensamento", "description": "Contato com máquinas e partes móveis.", "legal_basis": "NR-1/NR-12", "control_suggestions": ["proteções fixas", "bloqueio", "treinamento"], "default_evidence_requirements": ["APR", "treinamento", "inspeções"]},
+        {"code": "PSY_WORKLOAD", "hazard_group": "psychosocial", "name": "Sobrecarga e ritmo excessivo", "description": "Demandas, metas ou ritmo incompatíveis com capacidade e recursos.", "legal_basis": "NR-1/NR-17", "control_suggestions": ["redesenho do trabalho", "priorização", "dimensionamento"], "default_evidence_requirements": ["diagnóstico", "atas", "plano de ação"]},
+        {"code": "PSY_HARASS", "hazard_group": "psychosocial", "name": "Assédio / violência organizacional", "description": "Práticas de humilhação, constrangimento ou violência no trabalho.", "legal_basis": "NR-1", "control_suggestions": ["canal de denúncia", "treinamento de lideranças", "procedimentos"], "default_evidence_requirements": ["política interna", "treinamento", "registro de ações"]},
+    ]
+    for item in default_hazards:
+        exists = db.query(HazardCatalogItem).filter(HazardCatalogItem.code == item["code"]).first()
+        if not exists:
+            db.add(HazardCatalogItem(**item, is_active=True))
+    db.commit()
+
     # Optional bootstrap of a first Platform Admin user for brand-new environments.
     seed_platform_admin(db)
 

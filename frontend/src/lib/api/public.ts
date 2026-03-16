@@ -40,6 +40,7 @@ export async function publicSignup(payload: {
 
 export interface PublicCampaignOut {
   campaign: { id: string; name: string };
+  require_invitation?: boolean;
   min_anon_threshold: number;
   allow_org_unit_selection: boolean;
   org_units: { id: string; name: string; unit_type: string }[];

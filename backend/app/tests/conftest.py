@@ -3,14 +3,16 @@ import os
 import pytest
 from fastapi.testclient import TestClient
 
-# Use SQLite for tests to keep them self-contained
+# Ambiente de teste autocontido
 os.environ["DATABASE_URL"] = "sqlite+pysqlite:///./test_nrsolucoes.db"
 os.environ["AUTO_CREATE_SCHEMA"] = "true"
+os.environ["AUTO_MIGRATE_SCHEMA"] = "false"
 os.environ["ENV"] = "test"
 os.environ["STRIPE_WEBHOOK_SECRET"] = ""
 os.environ["STRIPE_ENABLED"] = "false"
-os.environ["JWT_SECRET_KEY"] = "test_secret_key_123"
-os.environ["STRIPE_ENABLED"] = "false"
+os.environ["JWT_SECRET_KEY"] = "test_secret_key_123_test_secret_key_123"
+os.environ["DEV_RETURN_OTP"] = "true"
+os.environ["LEGAL_ACCEPTANCE_REQUIRED"] = "false"
 
 from app.main import create_app
 from app.db.session import engine, SessionLocal
@@ -18,12 +20,14 @@ from app.db.base import Base
 from app.models.user import User
 from app.core.security import hash_password
 
-@pytest.fixture(scope="session", autouse=True)
-def setup_db():
+
+@pytest.fixture(autouse=True)
+def reset_db():
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
     yield
-    Base.metadata.drop_all(bind=engine)
+    SessionLocal.remove() if hasattr(SessionLocal, 'remove') else None
+
 
 @pytest.fixture()
 def db():
@@ -33,10 +37,12 @@ def db():
     finally:
         s.close()
 
+
 @pytest.fixture()
 def client(db):
     app = create_app()
     return TestClient(app)
+
 
 @pytest.fixture()
 def platform_admin(db):

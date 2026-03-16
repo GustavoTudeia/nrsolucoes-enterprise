@@ -1,25 +1,24 @@
-﻿# Dependências
-node_modules/
-.next/
-out/
-build/
-dist/
-
 # Python
 __pycache__/
-*.py[cod]
-*.class
-venv/
+*.pyc
+.pytest_cache/
 .venv/
-env/
+venv/
 
-# Ambiente e Segredos
+# Node / Next
+node_modules/
+.next/
+
+# Env
 .env
 .env.local
-.env.development.local
-.env.test.local
-.env.production.local
+backend/.env
+frontend/.env.local
 
-# Docker e Logs
-*.log
-docker-compose.override.yml
+# Playwright
+frontend/playwright-report/
+frontend/test-results/
+frontend/e2e/.auth/
+
+# Misc
+.DS_Store

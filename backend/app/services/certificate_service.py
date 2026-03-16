@@ -8,6 +8,9 @@ Este módulo implementa:
 """
 
 from __future__ import annotations
+
+import logging
+logger = logging.getLogger(__name__)
 import hashlib
 import secrets
 from datetime import datetime, timedelta
@@ -236,7 +239,7 @@ Emitido em: {certificate.issued_at.strftime('%d/%m/%Y')}
             upload_bytes(storage_key, pdf_content, "application/pdf")
             uploaded = True
         except Exception as e:
-            print(f"[CERT] Erro ao fazer upload do PDF: {e}")
+            logger.exception("Erro ao fazer upload do PDF: %s", e)
 
         # Atualizar certificado apenas se upload bem-sucedido
         if uploaded:

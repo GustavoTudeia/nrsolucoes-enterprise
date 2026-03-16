@@ -13,6 +13,7 @@ import { publicSignup } from "@/lib/api/public";
 import { BrandLogo } from "@/components/brand/logo";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { trackBrowserEvent } from "@/lib/analytics/client";
 
 // Máscaras
 function maskCNPJ(value: string): string {
@@ -110,7 +111,13 @@ export default function SignupPage() {
   useEffect(() => {
     const code = localStorage.getItem("nr_affiliate_code");
     if (code) setAffiliate(code);
-  }, []);
+    trackBrowserEvent("public", {
+      event_name: "public_signup_started",
+      source: "public",
+      module: "signup",
+      properties: { selected_plan: selectedPlan || undefined },
+    });
+  }, [selectedPlan]);
 
   const form = useForm<FormData>({
     resolver: zodResolver(schema),
@@ -167,6 +174,12 @@ export default function SignupPage() {
     }
 
     try {
+      await trackBrowserEvent("public", {
+        event_name: "public_signup_submitted",
+        source: "public",
+        module: "signup",
+        properties: { selected_plan: selectedPlan || undefined, has_cnpj: !!values.cnpj, affiliate: !!affiliate },
+      });
       await publicSignup({
         company_name: values.company_name,
         cnpj: values.cnpj?.replace(/\D/g, "") || undefined,
@@ -179,10 +192,22 @@ export default function SignupPage() {
         affiliate_code: affiliate || undefined,
         plan_key: selectedPlan || undefined,
       });
+      await trackBrowserEvent("public", {
+        event_name: "public_signup_completed",
+        source: "public",
+        module: "signup",
+        properties: { selected_plan: selectedPlan || undefined },
+      });
       toast.success("Conta criada com sucesso! Bem-vindo!");
-      router.push("/dashboard");
+      router.push(selectedPlan ? "/billing?welcome=1" : "/onboarding");
       router.refresh();
     } catch (e: any) {
+      await trackBrowserEvent("public", {
+        event_name: "public_signup_failed",
+        source: "public",
+        module: "signup",
+        properties: { selected_plan: selectedPlan || undefined },
+      });
       toast.error(e?.message || "Falha no cadastro. Verifique os dados e tente novamente.");
     }
   }

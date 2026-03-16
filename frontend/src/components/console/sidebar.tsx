@@ -47,6 +47,7 @@ type NavItem = {
   allowedRoles?: string[];
   // Só para platform admin
   platformOnly?: boolean;
+  requiredFeature?: string;
 };
 
 type NavGroup = {
@@ -63,7 +64,7 @@ function isActivePath(pathname: string, href: string) {
 
 export function ConsoleSidebar() {
   const pathname = usePathname();
-  const { me } = useConsole();
+  const { me, featureEnabled } = useConsole();
 
   const userRoles = me?.roles || [];
   const isPlatformAdmin = me?.is_platform_admin || false;
@@ -92,6 +93,7 @@ export function ConsoleSidebar() {
       label: "Visão geral",
       items: [
         { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+        { href: "/onboarding", label: "Onboarding", icon: ClipboardList, allowedRoles: [ROLES.OWNER, ROLES.TENANT_ADMIN] },
       ],
     },
     {
@@ -107,33 +109,35 @@ export function ConsoleSidebar() {
       label: "Campanhas & Diagnóstico",
       allowedRoles: [...adminRoles, ROLES.SECURITY_ANALYST, ROLES.CNPJ_MANAGER],
       items: [
-        { href: "/campanhas", label: "Campanhas", icon: Megaphone, allowedRoles: [...adminRoles, ROLES.SECURITY_ANALYST] },
-        { href: "/questionarios", label: "Questionários", icon: ClipboardList, allowedRoles: [...adminRoles, ROLES.SECURITY_ANALYST] },
-        { href: "/resultados", label: "Resultados", icon: BarChart3, allowedRoles: viewerRoles },
+        { href: "/campanhas", label: "Campanhas", icon: Megaphone, allowedRoles: [...adminRoles, ROLES.SECURITY_ANALYST], requiredFeature: "CAMPAIGNS" },
+        { href: "/questionarios", label: "Questionários", icon: ClipboardList, allowedRoles: [...adminRoles, ROLES.SECURITY_ANALYST], requiredFeature: "QUESTIONNAIRES" },
+        { href: "/resultados", label: "Resultados", icon: BarChart3, allowedRoles: viewerRoles, requiredFeature: "REPORTS" },
       ],
     },
     {
       label: "Gestão de Riscos",
       allowedRoles: viewerRoles,
       items: [
-        { href: "/risco", label: "Mapa de Risco", icon: AlertTriangle, allowedRoles: viewerRoles },
-        { href: "/plano-acao", label: "Plano de Ação", icon: ListTodo, allowedRoles: managementRoles },
-        { href: "/relatorios", label: "Relatórios", icon: FileText, allowedRoles: viewerRoles },
+        { href: "/inventario", label: "Inventário NR-1", icon: ClipboardList, allowedRoles: viewerRoles, requiredFeature: "RISK_INVENTORY" },
+        { href: "/risco", label: "Mapa de Risco", icon: AlertTriangle, allowedRoles: viewerRoles, requiredFeature: "RISK_MAP" },
+        { href: "/plano-acao", label: "Plano de Ação", icon: ListTodo, allowedRoles: managementRoles, requiredFeature: "ACTION_PLANS" },
+        { href: "/ergonomia", label: "AEP / AET", icon: ClipboardList, allowedRoles: viewerRoles, requiredFeature: "NR17" },
+        { href: "/relatorios", label: "Relatórios", icon: FileText, allowedRoles: viewerRoles, requiredFeature: "REPORTS" },
       ],
     },
     {
       label: "Aprendizagem",
       allowedRoles: [...managementRoles, ROLES.EMPLOYEE],
       items: [
-        { href: "/lms", label: "LMS", icon: GraduationCap, allowedRoles: [...managementRoles, ROLES.EMPLOYEE] },
+        { href: "/lms", label: "LMS", icon: GraduationCap, allowedRoles: [...managementRoles, ROLES.EMPLOYEE], requiredFeature: "LMS" },
       ],
     },
     {
       label: "Governança",
       allowedRoles: [...adminRoles, ROLES.SECURITY_ANALYST, ROLES.TENANT_AUDITOR],
       items: [
-        { href: "/auditoria", label: "Auditoria", icon: ShieldCheck, allowedRoles: [...adminRoles, ROLES.TENANT_AUDITOR] },
-        { href: "/esocial", label: "eSocial SST", icon: FileText, allowedRoles: [...adminRoles, ROLES.SECURITY_ANALYST] },
+        { href: "/auditoria", label: "Auditoria", icon: ShieldCheck, allowedRoles: [...adminRoles, ROLES.TENANT_AUDITOR], requiredFeature: "AUDIT" },
+        { href: "/esocial", label: "eSocial SST", icon: FileText, allowedRoles: [...adminRoles, ROLES.SECURITY_ANALYST], requiredFeature: "ESOCIAL_EXPORT" },
       ],
     },
     {
@@ -157,6 +161,8 @@ export function ConsoleSidebar() {
         { href: "/platform/tenants", label: "Tenants", icon: Building2, platformOnly: true },
         { href: "/platform/planos", label: "Planos", icon: CreditCard, platformOnly: true },
         { href: "/platform/assinaturas", label: "Assinaturas", icon: BarChart3, platformOnly: true },
+        { href: "/platform/finance", label: "Financeiro", icon: CreditCard, platformOnly: true },
+        { href: "/platform/analytics", label: "Analytics", icon: BarChart3, platformOnly: true },
         { href: "/platform/afiliados", label: "Afiliados", icon: Network, platformOnly: true },
       ],
     },
@@ -167,7 +173,7 @@ export function ConsoleSidebar() {
     if (item.platformOnly) {
       return isPlatformAdmin;
     }
-    // Verifica permissão por papel
+    if (item.requiredFeature && !isPlatformAdmin && !featureEnabled(item.requiredFeature)) return false;
     return hasAccess(item.allowedRoles);
   };
 

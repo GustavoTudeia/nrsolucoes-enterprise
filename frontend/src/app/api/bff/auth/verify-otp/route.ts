@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import { cookies } from "next/headers";
 
 const BACKEND_URL = process.env.BACKEND_BASE_URL || "http://localhost:8000/api/v1";
 const COOKIE_SECURE = (process.env.COOKIE_SECURE || "false") === "true";
@@ -26,15 +25,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ detail: "Token não retornado" }, { status: 500 });
     }
 
-    const cookieStore = await cookies();
-    cookieStore.set("console_token", accessToken, {
+    const response = NextResponse.json(data, { status: 200 });
+    response.cookies.set("console_token", accessToken, {
       httpOnly: true,
       secure: COOKIE_SECURE,
       sameSite: "lax",
       path: "/",
     });
 
-    return NextResponse.json(data, { status: 200 });
+    if (data?.refresh_token) {
+      response.cookies.set("console_refresh_token", data.refresh_token, {
+        httpOnly: true,
+        secure: COOKIE_SECURE,
+        sameSite: "lax",
+        path: "/",
+      });
+    }
+
+    return response;
   } catch (error) {
     console.error("[BFF] verify-otp error:", error);
     return NextResponse.json(

@@ -1,6 +1,6 @@
 """Dossiê PGR — Geração de PDF Enterprise
 
-Gera documento formal do Programa de Gerenciamento de Riscos Psicossociais
+Gera documento formal do Programa de Gerenciamento de Riscos (Governança NR-1)
 conforme NR-1 (Portaria MTE n. 1.419/2024), com layout profissional para
 apresentação a órgãos fiscalizadores e alta gestão.
 
@@ -661,7 +661,7 @@ def generate_pgr_dossier_pdf(dossier_data: Dict[str, Any]) -> bytes:
     elems.append(Paragraph("DOSSIE PGR", st["cover_title"]))
     elems.append(Spacer(1, 4 * mm))
     elems.append(Paragraph("Programa de Gerenciamento de Riscos", st["cover_subtitle"]))
-    elems.append(Paragraph("Riscos Psicossociais — NR-1", st["cover_subtitle"]))
+    elems.append(Paragraph("Governança e Evidências NR-1", st["cover_subtitle"]))
     elems.append(Spacer(1, 2 * cm))
 
     # CNPJs na capa
@@ -932,7 +932,7 @@ def generate_pgr_dossier_pdf(dossier_data: Dict[str, Any]) -> bytes:
     elems += _section_header(4, "Inventario e Classificacao de Riscos", st)
 
     elems.append(Paragraph(
-        "Classificacao dos riscos psicossociais conforme criterios da NR-1, considerando "
+        "Classificacao dos riscos conforme criterios da NR-1, considerando "
         "severidade e probabilidade de ocorrencia em cada dimensao avaliada.",
         st["body"],
     ))
@@ -1228,7 +1228,7 @@ def generate_pgr_dossier_pdf(dossier_data: Dict[str, Any]) -> bytes:
     elems.append(Spacer(1, 6 * mm))
     elems.append(Paragraph(
         "Este documento constitui o Dossie do Programa de Gerenciamento de Riscos (PGR) "
-        "para riscos psicossociais, elaborado em conformidade com a Norma Regulamentadora "
+        "para governança de riscos, elaborado em conformidade com a Norma Regulamentadora "
         "n. 1 (NR-1), conforme Portaria MTE n. 1.419/2024.",
         st["body"],
     ))

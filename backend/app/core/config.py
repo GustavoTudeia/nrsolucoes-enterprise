@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     JWT_SECRET_KEY: str = "CHANGE_ME"
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 30
+    REFRESH_TOKEN_REUSE_DETECTION: bool = True
 
     DATABASE_URL: str = "postgresql+psycopg2://nr:nr@localhost:5432/nrsolucoes"
 
@@ -51,6 +53,7 @@ class Settings(BaseSettings):
     LEGAL_PRIVACY_VERSION: str = "2026-01-01"
     LEGAL_TERMS_URL: str = "http://localhost:3000/termos"
     LEGAL_PRIVACY_URL: str = "http://localhost:3000/privacidade"
+    LEGAL_ACCEPTANCE_REQUIRED: bool = True
 
     # Storage (LMS uploads) - recomendado: MinIO (S3 compatível) em dev; S3/GCS em produção
     STORAGE_BACKEND: str = "s3"  # s3 recomendado
@@ -69,6 +72,16 @@ class Settings(BaseSettings):
 
     # Infra
     REDIS_URL: str = "redis://redis:6379/0"
+    CACHE_DEFAULT_TTL_SECONDS: int = 300
+
+    # Rate limiting (auth)
+    AUTH_RATE_LIMIT_LOGIN: int = 10
+    AUTH_RATE_LIMIT_LOGIN_WINDOW_SECONDS: int = 900
+    AUTH_RATE_LIMIT_PASSWORD_RESET: int = 5
+    AUTH_RATE_LIMIT_PASSWORD_RESET_WINDOW_SECONDS: int = 3600
+    AUTH_RATE_LIMIT_OTP_REQUEST: int = 5
+    AUTH_RATE_LIMIT_OTP_VERIFY: int = 10
+    AUTH_RATE_LIMIT_MAGIC_LINK: int = 5
 
     SMTP_HOST: str = ""
     SMTP_PORT: int = 2525
@@ -76,7 +89,30 @@ class Settings(BaseSettings):
     SMTP_PASSWORD: str = ""
     SMTP_FROM_EMAIL: str = "noreply@nrsolucoes.com.br"
     SMTP_FROM_NAME: str = "NR Soluções"
+    EMAIL_DELIVERY_MODE: str = "sync"  # sync|worker
     FRONTEND_URL: str = "http://localhost:3000"
+
+    # Analytics / Anti-churn
+    ANALYTICS_ENABLED: bool = True
+    ANALYTICS_BROWSER_CAPTURE_ENABLED: bool = True
+    ANALYTICS_RETENTION_EMAILS_ENABLED: bool = False
+    ANALYTICS_HEALTH_LOOKBACK_DAYS: int = 30
+    ANALYTICS_EVENT_RETENTION_DAYS: int = 365
+
+    POSTHOG_ENABLED: bool = False
+    POSTHOG_HOST: str = "https://app.posthog.com"
+    POSTHOG_PROJECT_API_KEY: str = ""
+
+    GA4_ENABLED: bool = False
+    GA4_MEASUREMENT_ID: str = ""
+    GA4_API_SECRET: str = ""
+
+    # Observability / operations
+    METRICS_ENABLED: bool = True
+    REQUIRE_CURRENT_MIGRATION_HEAD: bool = True
+
+    # E2E support (somente em ambientes controlados de teste/homologação)
+    ENABLE_E2E_TEST_SUPPORT: bool = False
 
     def cors_list(self) -> List[str]:
         if not self.CORS_ORIGINS:
@@ -87,7 +123,7 @@ class Settings(BaseSettings):
 settings = Settings()
 
 # Guardrails de produção: evita deploy acidental com segredos/toggles inseguros.
-if settings.ENV != "dev":
+if settings.ENV not in ("dev", "test"):
     # Segredo JWT: evita placeholder e segredos fracos
     if (
         not settings.JWT_SECRET_KEY

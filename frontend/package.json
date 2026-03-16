@@ -6,7 +6,12 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:e2e": "playwright test",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:debug": "playwright test --debug",
+    "test:e2e:install": "playwright install --with-deps"
   },
   "dependencies": {
     "@hookform/resolvers": "3.9.0",
@@ -42,6 +47,7 @@
     "eslint-config-next": "14.2.5",
     "postcss": "8.4.41",
     "tailwindcss": "3.4.10",
-    "typescript": "5.5.4"
+    "typescript": "5.5.4",
+    "@playwright/test": "^1.54.2"
   }
 }

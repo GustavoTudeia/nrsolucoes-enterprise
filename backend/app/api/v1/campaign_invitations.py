@@ -15,6 +15,7 @@ Endpoints públicos (para colaboradores):
 from __future__ import annotations
 
 from typing import Optional, List
+from datetime import datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query, Request
@@ -47,6 +48,7 @@ from app.schemas.campaign_invitation import (
     SurveySubmitResult,
 )
 from app.schemas.common import Page
+from app.services.email_service import email_service
 from app.services.invitation_service import (
     generate_invitations,
     validate_token,
@@ -114,19 +116,26 @@ def generate_campaign_invitations(
     }
 
     invitations_out = []
+    total_sent = 0
     for invitation, token_plain in results:
         emp = employees.get(invitation.employee_id)
+        survey_url = f"{base_url}/pesquisa/{campaign_id}?token={token_plain}"
         invitations_out.append(
             InvitationWithTokenOut(
                 id=invitation.id,
                 employee_id=invitation.employee_id,
                 employee_name=emp.full_name if emp else None,
-                employee_email=emp.identifier if emp else None,
+                employee_email=emp.email if emp else None,
                 token=token_plain,
-                survey_url=f"{base_url}/pesquisa/{campaign_id}?token={token_plain}",
+                survey_url=survey_url,
                 expires_at=invitation.expires_at,
             )
         )
+        if payload.send_email and emp and emp.email:
+            if email_service.queue_invitation(to_email=emp.email, invite_url=survey_url, tenant_name="Pesquisa NR-1", role_name="Respondente", invited_by=user.display_name):
+                invitation.sent_at = datetime.utcnow()
+                total_sent += 1
+                db.add(invitation)
 
     # Auditoria
     db.add(
@@ -155,7 +164,7 @@ def generate_campaign_invitations(
         total_eligible=int(batch.total_invited),
         total_created=len(results),
         total_skipped=int(batch.total_failed),
-        total_sent=0,  # TODO: implementar envio de email
+        total_sent=total_sent,
         invitations=invitations_out,
     )
 
@@ -227,7 +236,7 @@ def list_campaign_invitations(
                 campaign_id=r.campaign_id,
                 employee_id=r.employee_id,
                 employee_name=emp.full_name if emp else None,
-                employee_email=emp.identifier if emp else None,
+                employee_email=emp.email if emp and emp.email else (emp.identifier if emp else None),
                 status=r.status,
                 expires_at=r.expires_at,
                 sent_at=r.sent_at,
@@ -236,7 +245,7 @@ def list_campaign_invitations(
                 revoked_at=r.revoked_at,
                 sent_via=r.sent_via,
                 sent_to_email=r.sent_to_email,
-                reminder_count=r.reminder_count or "0",
+                reminder_count=int(r.reminder_count or 0),
                 created_at=r.created_at,
             )
         )
@@ -431,6 +440,4 @@ def submit_response_legacy(
             "Use o link personalizado enviado por email ou solicite um convite ao RH."
         )
 
-    # Se não requer, delegar para o endpoint original
-    # (isso seria implementado no campaigns.py original)
-    raise BadRequest("Use POST /public/survey/{campaign_id}/submit com token válido")
+    raise BadRequest("Campanha sem convite deve usar POST /api/v1/campaigns/{campaign_id}/responses")

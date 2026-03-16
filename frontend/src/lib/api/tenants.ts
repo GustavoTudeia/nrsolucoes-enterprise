@@ -26,6 +26,8 @@ export type PlanAdminOut = {
   price_annual?: number | null;
   is_custom_price?: boolean;
   stripe_price_id?: string | null;
+  stripe_price_id_monthly?: string | null;
+  stripe_price_id_annual?: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -59,6 +61,8 @@ export async function createPlan(payload: {
   price_annual?: number | null;
   is_custom_price?: boolean;
   stripe_price_id?: string | null;
+  stripe_price_id_monthly?: string | null;
+  stripe_price_id_annual?: string | null;
   is_active?: boolean;
 }) {
   return apiFetch<PlanAdminOut>("console", "/platform/plans", {
@@ -75,6 +79,8 @@ export async function updatePlan(planId: string, payload: {
   price_annual?: number | null;
   is_custom_price?: boolean;
   stripe_price_id?: string | null;
+  stripe_price_id_monthly?: string | null;
+  stripe_price_id_annual?: string | null;
   is_active?: boolean;
 }) {
   return apiFetch<PlanAdminOut>("console", `/platform/plans/${planId}`, {

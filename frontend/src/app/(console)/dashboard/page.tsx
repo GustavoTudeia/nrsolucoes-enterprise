@@ -19,6 +19,8 @@ import {
   type TrainingSummaryOut,
 } from "@/lib/api/reports";
 import { getLMSStats, type LMSStatsOut } from "@/lib/api/lms";
+import { getTenantHealth, listTenantNudges, refreshTenantHealth } from "@/lib/api/analytics";
+import type { TenantHealthOut, TenantNudgeOut } from "@/lib/api/types";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -49,6 +51,8 @@ export default function DashboardPage() {
   const [readiness, setReadiness] = useState<ReadinessOut | null>(null);
   const [training, setTraining] = useState<TrainingSummaryOut | null>(null);
   const [lmsStats, setLmsStats] = useState<LMSStatsOut | null>(null);
+  const [health, setHealth] = useState<TenantHealthOut | null>(null);
+  const [nudges, setNudges] = useState<TenantNudgeOut[]>([]);
   const [loading, setLoading] = useState(true);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
 
@@ -62,18 +66,22 @@ export default function DashboardPage() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [s, o, r, t, l] = await Promise.all([
+      const [s, o, r, t, l, h, n] = await Promise.all([
         getSubscription().catch(() => null),
         getTenantOverview().catch(() => null),
         getReadiness().catch(() => null),
         getTrainingSummary().catch(() => null),
         getLMSStats().catch(() => null),
+        getTenantHealth().catch(() => null),
+        listTenantNudges().catch(() => []),
       ]);
       setSub(s);
       setOv(o);
       setReadiness(r);
       setTraining(t);
       setLmsStats(l);
+      setHealth(h);
+      setNudges(n || []);
     } catch (e: any) {
       toast.error(e?.message || "Falha ao carregar dashboard");
     } finally {
@@ -112,7 +120,7 @@ export default function DashboardPage() {
         <div>
           <h1 className="text-2xl font-bold tracking-tight">{greeting}</h1>
           <p className="text-muted-foreground text-sm mt-1">
-            Visao consolidada do ciclo NR-1: organizacao, diagnostico, risco, plano de acao, treinamento e auditoria
+            Visão consolidada da governança e evidências NR-1: organização, inventário, risco, ação, treinamento e auditoria
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -140,7 +148,75 @@ export default function DashboardPage() {
         <KpiCard label="Avaliacoes de Risco" value={ov?.counts.risk_assessments} color="text-amber-600" />
       </div>
 
-      {/* ═══════ ROW 2: Prontidao NR-1 + Risco ═══════ */}
+
+      {/* ═══════ ROW 1.5: Saúde do Tenant / Anti-churn ═══════ */}
+      <div className="grid gap-6 lg:grid-cols-3">
+        <Card className="lg:col-span-2">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <CardTitle className="text-base">Saúde do Tenant</CardTitle>
+                <CardDescription>Ativação, rotina operacional e risco de churn por conta.</CardDescription>
+              </div>
+              <div className="text-right">
+                <div className="text-3xl font-bold">{health?.score ?? 0}</div>
+                <Badge className={health?.band === "healthy" ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" : health?.band === "attention" ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200" : "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"}>
+                  {health?.band === "healthy" ? "Saudável" : health?.band === "attention" ? "Atenção" : health?.band === "risk" ? "Risco" : "Crítico"}
+                </Badge>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-5">
+              <MiniMetric label="Onboarding" value={health?.onboarding_score ?? 0} />
+              <MiniMetric label="Ativação" value={health?.activation_score ?? 0} />
+              <MiniMetric label="Profundidade" value={health?.depth_score ?? 0} />
+              <MiniMetric label="Rotina" value={health?.routine_score ?? 0} />
+              <MiniMetric label="Financeiro" value={health?.billing_score ?? 0} />
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <div className="text-sm font-medium">Sinais de risco</div>
+                {health?.risk_flags?.length ? health.risk_flags.map((flag) => (
+                  <div key={flag} className="rounded-lg border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">{flag}</div>
+                )) : <div className="rounded-lg border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">Nenhum sinal crítico detectado.</div>}
+              </div>
+              <div className="space-y-2">
+                <div className="text-sm font-medium">Próximas ações recomendadas</div>
+                {health?.recommendations?.length ? health.recommendations.slice(0, 4).map((rec) => (
+                  <Link key={rec.key} href={rec.href || "/onboarding"} className="block rounded-lg border bg-background px-3 py-2 hover:bg-muted/40">
+                    <div className="text-sm font-medium">{rec.title}</div>
+                    <div className="text-xs text-muted-foreground mt-1">{rec.description}</div>
+                  </Link>
+                )) : <div className="rounded-lg border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">Sem recomendações no momento.</div>}
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={async()=>{ const next = await refreshTenantHealth(); setHealth(next); setNudges(await listTenantNudges().catch(()=>[])); toast.success('Saúde do tenant recalculada'); }}>Recalcular score</Button>
+              <Button asChild variant="outline"><Link className="no-underline" href="/onboarding">Abrir onboarding guiado</Link></Button>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Nudges & retenção</CardTitle>
+            <CardDescription>Intervenções automáticas sugeridas pela plataforma.</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {nudges.length ? nudges.slice(0, 5).map((nudge) => (
+              <div key={nudge.id} className="rounded-lg border px-3 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-medium">{nudge.title}</div>
+                  <Badge variant="outline">{nudge.audience_role || 'tenant'}</Badge>
+                </div>
+                <div className="text-xs text-muted-foreground mt-1">{nudge.body}</div>
+              </div>
+            )) : <div className="text-sm text-muted-foreground">Nenhum nudge pendente.</div>}
+          </CardContent>
+        </Card>
+      </div>
+
+            {/* ═══════ ROW 2: Prontidao NR-1 + Risco ═══════ */}
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Prontidao NR-1 */}
         <Card className="lg:col-span-2">
@@ -181,7 +257,7 @@ export default function DashboardPage() {
                 /* Fallback to overview readiness if /readiness endpoint not available */
                 <>
                   <ReadinessItem label="Estrutura organizacional (CNPJ/unidades/colaboradores)" done={!!ov?.readiness.org_structure} />
-                  <ReadinessItem label="Diagnostico psicossocial (N >= LGPD)" done={!!ov?.readiness.diagnostic} />
+                  <ReadinessItem label="Diagnóstico / inventário com evidência mínima (LGPD)" done={!!ov?.readiness.diagnostic} />
                   <ReadinessItem label="Classificacao de risco por dimensao" done={!!ov?.readiness.risk} />
                   <ReadinessItem label="Plano de acao em execucao" done={!!ov?.readiness.action_plan} />
                 </>
@@ -213,7 +289,7 @@ export default function DashboardPage() {
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-base">Campanhas</CardTitle>
-            <CardDescription>Ciclos de diagnostico psicossocial</CardDescription>
+            <CardDescription>Ciclos de diagnóstico e evidência NR-1</CardDescription>
           </CardHeader>
           <CardContent className="space-y-3">
             <div className="grid grid-cols-3 gap-3">
@@ -301,7 +377,7 @@ export default function DashboardPage() {
             <CardDescription>Proximos passos recomendados</CardDescription>
           </CardHeader>
           <CardContent className="space-y-2">
-            <QuickAction href="/campanhas" label="Criar/gerenciar campanhas" desc="Inicie diagnosticos psicossociais" primary />
+            <QuickAction href="/campanhas" label="Criar/gerenciar campanhas" desc="Inicie diagnósticos de governança e inventário NR-1" primary />
             <QuickAction href="/questionarios" label="Questionarios" desc="Templates e versionamento NR-1" />
             <QuickAction href="/resultados" label="Visualizar resultados" desc="Agregacao com conformidade LGPD" />
             <QuickAction href="/mapa-de-risco" label="Mapa de Risco" desc="Classificacao por dimensao e setor" />
@@ -457,6 +533,16 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
     <div className="flex justify-between items-center text-sm">
       <span className="text-muted-foreground">{label}</span>
       <span className="font-medium text-foreground">{value}</span>
+    </div>
+  );
+}
+
+
+function MiniMetric({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="rounded-lg border bg-muted/30 px-3 py-3">
+      <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{label}</div>
+      <div className="text-2xl font-bold mt-1">{value}</div>
     </div>
   );
 }

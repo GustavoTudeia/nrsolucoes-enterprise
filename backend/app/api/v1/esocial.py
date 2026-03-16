@@ -84,6 +84,9 @@ def list_s2240_profiles(
                 controls=r.controls or {},
                 valid_from=r.valid_from,
                 valid_to=r.valid_to,
+                layout_version=r.layout_version,
+                source_reference=r.source_reference,
+                traceability=r.traceability or {},
                 is_active=r.is_active,
                 created_at=r.created_at,
                 updated_at=r.updated_at,
@@ -120,6 +123,9 @@ def create_s2240_profile(
         controls=payload.controls or {},
         valid_from=payload.valid_from,
         valid_to=payload.valid_to,
+        layout_version=payload.layout_version,
+        source_reference=payload.source_reference,
+        traceability=payload.traceability or {},
         is_active=payload.is_active,
     )
     db.add(r)
@@ -153,6 +159,9 @@ def create_s2240_profile(
         controls=r.controls or {},
         valid_from=r.valid_from,
         valid_to=r.valid_to,
+        layout_version=r.layout_version,
+        source_reference=r.source_reference,
+        traceability=r.traceability or {},
         is_active=r.is_active,
         created_at=r.created_at,
         updated_at=r.updated_at,
@@ -187,9 +196,11 @@ def export_s2240_profile(
         "valid_to": r.valid_to.isoformat() if r.valid_to else None,
         "factors": r.factors or [],
         "controls": r.controls or {},
-        "note": "Export assistido (base). O layout oficial do eSocial pode exigir campos adicionais. Use este JSON como fonte consistente e auditável.",
+        "source_reference": r.source_reference,
+        "traceability": r.traceability or {},
+        "note": "Export assistido (base) com rastreabilidade e versão de leiaute.",
     }
-    return ESocialExportOut(event="S-2240", generated_at=datetime.utcnow(), data=data)
+    return ESocialExportOut(event="S-2240", generated_at=datetime.utcnow(), layout_version=r.layout_version or "S-1.3", data=data)
 
 
 # ============================================================
@@ -222,6 +233,9 @@ def list_s2210_accidents(
                 description=r.description,
                 location=r.location,
                 cat_number=r.cat_number,
+                layout_version=r.layout_version,
+                source_reference=r.source_reference,
+                traceability=r.traceability or {},
                 payload=r.payload or {},
                 created_at=r.created_at,
                 updated_at=r.updated_at,
@@ -255,6 +269,9 @@ def create_s2210_accident(
         description=payload.description,
         location=payload.location,
         cat_number=payload.cat_number,
+        layout_version=payload.layout_version,
+        source_reference=payload.source_reference,
+        traceability=payload.traceability or {},
         payload=payload.payload or {},
     )
     db.add(r)
@@ -285,6 +302,9 @@ def create_s2210_accident(
         description=r.description,
         location=r.location,
         cat_number=r.cat_number,
+        layout_version=r.layout_version,
+        source_reference=r.source_reference,
+        traceability=r.traceability or {},
         payload=r.payload or {},
         created_at=r.created_at,
         updated_at=r.updated_at,
@@ -315,10 +335,12 @@ def export_s2210_accident(
         "description": r.description,
         "location": r.location,
         "cat_number": r.cat_number,
+        "source_reference": r.source_reference,
+        "traceability": r.traceability or {},
         "payload": r.payload or {},
         "note": "Export assistido (base) para apoiar o preenchimento do S-2210/CAT em integrador.",
     }
-    return ESocialExportOut(event="S-2210", generated_at=datetime.utcnow(), data=data)
+    return ESocialExportOut(event="S-2210", generated_at=datetime.utcnow(), layout_version=r.layout_version or "S-1.3", data=data)
 
 
 # ============================================================
@@ -349,6 +371,9 @@ def list_s2220_exams(
                 exam_date=r.exam_date,
                 exam_type=r.exam_type,
                 result=r.result,
+                layout_version=r.layout_version,
+                source_reference=r.source_reference,
+                traceability=r.traceability or {},
                 payload=r.payload or {},
                 created_at=r.created_at,
                 updated_at=r.updated_at,
@@ -380,6 +405,9 @@ def create_s2220_exam(
         exam_date=payload.exam_date or datetime.utcnow(),
         exam_type=payload.exam_type,
         result=payload.result,
+        layout_version=payload.layout_version,
+        source_reference=payload.source_reference,
+        traceability=payload.traceability or {},
         payload=payload.payload or {},
     )
     db.add(r)
@@ -408,6 +436,9 @@ def create_s2220_exam(
         exam_date=r.exam_date,
         exam_type=r.exam_type,
         result=r.result,
+        layout_version=r.layout_version,
+        source_reference=r.source_reference,
+        traceability=r.traceability or {},
         payload=r.payload or {},
         created_at=r.created_at,
         updated_at=r.updated_at,

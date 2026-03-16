@@ -1,8 +1,8 @@
 export const BRAND = {
   name: "NR1 Soluções",
   product: "Plataforma NR-1",
-  tagline: "Gestão enterprise de riscos psicossociais, do diagnóstico à evidência auditável.",
-  shortTagline: "NR-1 enterprise, do diagnóstico à evidência.",
+  tagline: "Governança e evidências NR-1 enterprise, do inventário vivo ao plano de ação auditável.",
+  shortTagline: "NR-1 enterprise, do inventário à evidência.",
 } as const;
 
 const SUPPORT_WHATSAPP_NUMBER = (
@@ -33,10 +33,10 @@ export const NAV_PUBLIC = [
 
 export const SOCIAL_PROOF = {
   metrics: [
-    { value: "500+", label: "Empresas atendidas" },
-    { value: "50k+", label: "Colaboradores avaliados" },
-    { value: "99.9%", label: "Uptime garantido" },
-    { value: "100%", label: "Conformidade LGPD" },
+    { value: "Enterprise-ready", label: "Arquitetura multi-tenant" },
+    { value: "NR-1", label: "Inventário + plano de ação" },
+    { value: "LGPD", label: "Agregação com limiar mínimo" },
+    { value: "Auditável", label: "Trilha de evidências" },
   ],
   trustBadges: [
     "LGPD by Design",

@@ -52,6 +52,8 @@ def get_public_campaign(campaign_id: UUID, db: Session = Depends(get_db)):
 
     return {
         "campaign": {"id": str(camp.id), "name": camp.name},
+        "require_invitation": bool(getattr(camp, "require_invitation", False)),
+        "invitation_expires_days": int(getattr(camp, "invitation_expires_days", 30) or 30),
         "min_anon_threshold": min_n,
         "allow_org_unit_selection": allow_org_unit_selection,
         "org_units": org_units,

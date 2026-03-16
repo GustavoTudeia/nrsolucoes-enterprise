@@ -22,6 +22,9 @@ Endpoints:
 
 from __future__ import annotations
 
+import logging
+logger = logging.getLogger(__name__)
+
 from datetime import datetime
 from typing import Optional, List
 from uuid import UUID
@@ -453,6 +456,8 @@ def complete_enrollment(
         service.create_evidence_from_certificate(enrollment, certificate)
 
     # Auditoria
+    actor_role = (user.roles[0].role.key if getattr(user, "roles", None) and user.roles and user.roles[0].role else None)
+    capture_analytics_event(db, "training_completed", source="backend", tenant_id=tenant_id, user_id=user.id, actor_role=actor_role, module="trainings", properties={"enrollment_id": str(enrollment_id), "certificate_generated": bool(certificate)})
     db.add(
         make_audit_event(
             tenant_id,
@@ -473,6 +478,7 @@ def complete_enrollment(
         )
     )
 
+    upsert_tenant_health_snapshot(db, tenant_id)
     db.commit()
 
     return {
@@ -845,7 +851,7 @@ def generate_certificates_for_item(
     """
     from app.services.certificate_service import CertificateService
 
-    print(f"[CERT] Iniciando geração para item {item_id}, tenant {tenant_id}")
+    logger.info("Iniciando geração de certificados para item %s tenant %s", item_id, tenant_id)
 
     # Verificar se o item existe e pertence ao tenant
     item = (
@@ -854,10 +860,10 @@ def generate_certificates_for_item(
         .first()
     )
     if not item:
-        print(f"[CERT] Item não encontrado")
+        logger.warning("Item de treinamento não encontrado")
         raise NotFound("Item não encontrado")
 
-    print(f"[CERT] Item encontrado: {item.title}")
+    logger.info("Item encontrado: %s", item.title)
 
     # Buscar matrículas concluídas sem certificado
     query = db.query(ActionItemEnrollment).filter(
@@ -875,7 +881,7 @@ def generate_certificates_for_item(
 
     enrollments = query.all()
 
-    print(f"[CERT] Matrículas elegíveis encontradas: {len(enrollments)}")
+    logger.info("Matrículas elegíveis encontradas: %s", len(enrollments))
 
     # Debug: listar todas as matrículas do item
     all_enrollments = (
@@ -884,7 +890,7 @@ def generate_certificates_for_item(
         .all()
     )
     for e in all_enrollments:
-        print(f"[CERT] Matrícula: status={e.status}, certificate_id={e.certificate_id}")
+        logger.debug("Matrícula elegível status=%s certificate_id=%s", e.status, e.certificate_id)
 
     if not enrollments:
         return {
@@ -915,28 +921,26 @@ def generate_certificates_for_item(
 
     for enrollment in enrollments:
         try:
-            print(f"[CERT] Processando matrícula {enrollment.id}...")
+            logger.info("Processando matrícula %s", enrollment.id)
 
             # Criar certificado com metadados NR-1
             certificate = cert_service.create_certificate(
                 enrollment=enrollment,
                 **nr1_kwargs,
             )
-            print(f"[CERT] Certificado criado: {certificate.certificate_number}")
+            logger.info("Certificado criado: %s", certificate.certificate_number)
 
             # Gerar e salvar PDF
             try:
                 cert_service.save_pdf(certificate)
             except Exception as e:
-                print(
-                    f"[CERT] Erro ao gerar PDF para {certificate.certificate_number}: {e}"
-                )
+                logger.exception("Erro ao gerar PDF para %s: %s", certificate.certificate_number, e)
 
             db.commit()
             generated += 1
 
         except Exception as e:
-            print(f"[CERT] ERRO ao processar matrícula: {e}")
+            logger.exception("Erro ao processar matrícula: %s", e)
             db.rollback()
             errors.append(str(e))
             skipped += 1

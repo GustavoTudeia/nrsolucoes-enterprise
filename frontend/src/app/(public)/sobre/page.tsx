@@ -27,7 +27,7 @@ const PILLARS = [
   {
     icon: Target,
     title: "Missão",
-    desc: "Elevar o padrão de prevenção e gestão de riscos psicossociais com tecnologia, dados e governança.",
+    desc: "Elevar o padrão de prevenção e gestão de governança e evidências NR-1 com tecnologia, dados e governança.",
     color: "bg-blue-500/10 text-blue-600 dark:text-blue-400",
   },
   {
@@ -54,7 +54,7 @@ const VALUES = [
   {
     icon: Heart,
     title: "Seriedade com o tema",
-    desc: "Riscos psicossociais afetam pessoas. Tratamos dados com responsabilidade e a operação com rigor.",
+    desc: "Governança e evidências NR-1 afetam pessoas. Tratamos dados com responsabilidade e a operação com rigor.",
   },
   {
     icon: LockKeyhole,
@@ -101,7 +101,7 @@ export default function SobrePage() {
               <SectionHeader
                 eyebrow="Sobre a NR1 Soluções"
                 title="Tecnologia com postura enterprise para um tema sensível"
-                lead="Riscos psicossociais exigem seriedade: privacidade, governança e consistência. Construímos uma plataforma para apoiar empresas e parceiros a operacionalizar um ciclo completo — com evidências."
+                lead="Governança e evidências NR-1 exigem seriedade: privacidade, governança e consistência. Construímos uma plataforma para apoiar empresas e parceiros a operacionalizar um ciclo completo — com evidências."
               />
 
               <div className="mt-8 grid grid-cols-2 gap-4">
@@ -119,7 +119,7 @@ export default function SobrePage() {
               <div className="overflow-hidden rounded-3xl border border-slate-200 bg-gradient-to-br from-[#f8fafc] to-[#eef2ff] shadow-xl dark:hidden">
                 <Image
                   src="/brand/about-enterprise.svg"
-                  alt="Ciclo completo de gestão de riscos psicossociais NR-1"
+                  alt="Ciclo completo de gestão de governança e evidências NR-1 NR-1"
                   width={800}
                   height={600}
                   className="h-auto w-full"
@@ -130,7 +130,7 @@ export default function SobrePage() {
               <div className="hidden overflow-hidden rounded-3xl border border-slate-700/50 bg-gradient-to-br from-[#0f172a] to-[#1e293b] shadow-xl dark:block">
                 <Image
                   src="/brand/about-enterprise-dark.svg"
-                  alt="Ciclo completo de gestão de riscos psicossociais NR-1"
+                  alt="Ciclo completo de gestão de governança e evidências NR-1 NR-1"
                   width={800}
                   height={600}
                   className="h-auto w-full"

@@ -106,7 +106,7 @@ export default function PublicLayout({ children }: { children: React.ReactNode }
           <div className="md:col-span-4">
             <BrandLogo linked={false} />
             <p className="mt-4 max-w-md text-sm text-muted-foreground">
-              Plataforma enterprise para gestão de riscos psicossociais (NR-1), com rastreabilidade, evidências
+              Plataforma enterprise para gestão de governança e evidências NR-1 (NR-1), com rastreabilidade, evidências
               e governança. Projetada para empresas com múltiplos CNPJs e operações distribuídas no Brasil.
             </p>
             <div className="mt-4 flex flex-wrap gap-2">

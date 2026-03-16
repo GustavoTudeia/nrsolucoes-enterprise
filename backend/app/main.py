@@ -3,7 +3,7 @@ from __future__ import annotations
 from fastapi import FastAPI
 from app.core.logging import configure_logging
 from fastapi.middleware.cors import CORSMiddleware
-from app.core.middleware import RequestIdMiddleware
+from app.core.middleware import RequestIdMiddleware, SecurityHeadersMiddleware
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -13,6 +13,7 @@ from app.db.base import Base
 from app.models import *  # noqa
 from app.services.seed import seed_platform_defaults
 from app.db.bootstrap_migrations import apply_bootstrap_migrations
+from app.core.migrations import get_migration_status
 
 import logging
 logger = logging.getLogger(__name__)
@@ -22,6 +23,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title=settings.APP_NAME, version=settings.APP_VERSION)
 
     app.add_middleware(RequestIdMiddleware)
+    app.add_middleware(SecurityHeadersMiddleware)
 
     if settings.cors_list():
         app.add_middleware(
@@ -41,6 +43,11 @@ def create_app() -> FastAPI:
         # DEV schema bootstrap: adiciona colunas/tipos que não são criados por create_all()
         if getattr(settings, "AUTO_MIGRATE_SCHEMA", False):
             apply_bootstrap_migrations(engine)
+        if settings.REQUIRE_CURRENT_MIGRATION_HEAD and settings.ENV not in {"dev", "test"}:
+            migration = get_migration_status(engine)
+            if not migration.is_current:
+                raise RuntimeError(f"Banco fora do head do Alembic. current={migration.current_revision} head={migration.head_revision}")
+
         # seed roles/plans once
         from app.db.session import SessionLocal
         db: Session = SessionLocal()

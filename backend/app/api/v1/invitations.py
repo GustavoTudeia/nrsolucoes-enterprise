@@ -232,7 +232,7 @@ def create_invitation(
 
     # Enviar email de convite
     invite_url = f"{settings.FRONTEND_URL}/convite/{invitation.token}"
-    email_service.send_invitation(
+    email_service.queue_invitation(
         to_email=email,
         invite_url=invite_url,
         tenant_name=tenant.name if tenant else "Empresa",
@@ -567,7 +567,7 @@ def resend_invitation(
     role = db.query(Role).filter(Role.key == invitation.role_key).first()
 
     invite_url = f"{settings.FRONTEND_URL}/convite/{invitation.token}"
-    email_service.send_invitation(
+    email_service.queue_invitation(
         to_email=invitation.email,
         invite_url=invite_url,
         tenant_name=tenant.name if tenant else "Empresa",

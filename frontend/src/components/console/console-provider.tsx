@@ -1,8 +1,9 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
-import type { MeResponse } from "@/lib/api/types";
+import type { MeResponse, SubscriptionOut } from "@/lib/api/types";
 import { consoleMe, consoleLogout } from "@/lib/api/auth";
+import { getSubscription } from "@/lib/api/billing";
 import { toast } from "sonner";
 import { listCnpjs, listUnits } from "@/lib/api/org";
 import type { CNPJOut, OrgUnitOut } from "@/lib/api/types";
@@ -20,6 +21,10 @@ type ConsoleScope = {
 
 type ConsoleContextValue = {
   me: MeResponse | null;
+  subscription: SubscriptionOut | null;
+  features: Record<string, any>;
+  limits: Record<string, any>;
+  featureEnabled: (key: string) => boolean;
   loading: boolean;
   refresh: () => Promise<void>;
   logout: () => Promise<void>;
@@ -30,6 +35,7 @@ export const ConsoleContext = createContext<ConsoleContextValue | undefined>(und
 
 export function ConsoleProvider({ children }: { children: React.ReactNode }) {
   const [me, setMe] = useState<MeResponse | null>(null);
+  const [subscription, setSubscription] = useState<SubscriptionOut | null>(null);
   const [loading, setLoading] = useState(true);
 
   const [cnpjs, setCnpjs] = useState<CNPJOut[]>([]);
@@ -100,10 +106,12 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
   async function refresh() {
     setLoading(true);
     try {
-      const m = await consoleMe();
+      const [m, s] = await Promise.all([consoleMe(), getSubscription().catch(() => null)]);
       setMe(m);
+      setSubscription(s);
     } catch (e: any) {
       setMe(null);
+      setSubscription(null);
     } finally {
       setLoading(false);
     }
@@ -169,7 +177,10 @@ export function ConsoleProvider({ children }: { children: React.ReactNode }) {
     [cnpjId, orgUnitId, cnpjs, orgUnits, scopeLoading]
   );
 
-  const value = useMemo(() => ({ me, loading, refresh, logout, scope }), [me, loading, scope]);
+  const features = useMemo(() => (subscription?.entitlements_snapshot?.features || {}) as Record<string, any>, [subscription]);
+  const limits = useMemo(() => (subscription?.entitlements_snapshot?.limits || {}) as Record<string, any>, [subscription]);
+  const featureEnabled = (key: string) => !!features[key];
+  const value = useMemo(() => ({ me, subscription, features, limits, featureEnabled, loading, refresh, logout, scope }), [me, subscription, features, limits, loading, scope]);
 
   return <ConsoleContext.Provider value={value}>{children}</ConsoleContext.Provider>;
 }

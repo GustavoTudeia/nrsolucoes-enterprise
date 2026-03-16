@@ -23,6 +23,9 @@ class S2240ProfileCreate(BaseModel):
     controls: Dict[str, Any] = Field(default_factory=dict)
     valid_from: Optional[datetime] = None
     valid_to: Optional[datetime] = None
+    layout_version: str = "S-1.3"
+    source_reference: Optional[str] = None
+    traceability: Dict[str, Any] = Field(default_factory=dict)
     is_active: bool = True
 
 
@@ -38,6 +41,9 @@ class S2240ProfileOut(BaseModel):
     controls: Dict[str, Any]
     valid_from: Optional[datetime] = None
     valid_to: Optional[datetime] = None
+    layout_version: str
+    source_reference: Optional[str] = None
+    traceability: Dict[str, Any]
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -50,6 +56,9 @@ class S2210AccidentCreate(BaseModel):
     description: Optional[str] = Field(default=None, max_length=1000)
     location: Optional[str] = Field(default=None, max_length=200)
     cat_number: Optional[str] = Field(default=None, max_length=60)
+    layout_version: str = "S-1.3"
+    source_reference: Optional[str] = None
+    traceability: Dict[str, Any] = Field(default_factory=dict)
     payload: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -62,6 +71,9 @@ class S2210AccidentOut(BaseModel):
     description: Optional[str] = None
     location: Optional[str] = None
     cat_number: Optional[str] = None
+    layout_version: str
+    source_reference: Optional[str] = None
+    traceability: Dict[str, Any]
     payload: Dict[str, Any]
     created_at: datetime
     updated_at: datetime
@@ -72,6 +84,9 @@ class S2220ExamCreate(BaseModel):
     exam_date: Optional[datetime] = None
     exam_type: Optional[str] = Field(default=None, max_length=80)
     result: Optional[str] = Field(default=None, max_length=200)
+    layout_version: str = "S-1.3"
+    source_reference: Optional[str] = None
+    traceability: Dict[str, Any] = Field(default_factory=dict)
     payload: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -82,6 +97,9 @@ class S2220ExamOut(BaseModel):
     exam_date: datetime
     exam_type: Optional[str] = None
     result: Optional[str] = None
+    layout_version: str
+    source_reference: Optional[str] = None
+    traceability: Dict[str, Any]
     payload: Dict[str, Any]
     created_at: datetime
     updated_at: datetime
@@ -90,4 +108,5 @@ class S2220ExamOut(BaseModel):
 class ESocialExportOut(BaseModel):
     event: str
     generated_at: datetime
+    layout_version: str = "S-1.3"
     data: Dict[str, Any]

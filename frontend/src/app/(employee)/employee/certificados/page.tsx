@@ -128,7 +128,7 @@ export default function CertificadosPage() {
               </p>
               <p className="text-blue-700 mt-1">
                 Eles comprovam a conclusão de treinamentos obrigatórios do programa de
-                gestão de riscos psicossociais (NR-1) e devem ser guardados por até 20 anos.
+                gestão de governança e evidências NR-1 (NR-1) e devem ser guardados por até 20 anos.
               </p>
             </div>
           </div>

@@ -576,6 +576,8 @@ def create_plan(
     )
     db.add(plan)
     db.flush()
+    actor_role = (user.roles[0].role.key if getattr(user, "roles", None) and user.roles and user.roles[0].role else None)
+    capture_analytics_event(db, "action_plan_created", source="backend", tenant_id=tenant_id, user_id=user.id, actor_role=actor_role, module="action_plans", properties={"risk_assessment_id": str(ra.id), "plan_id": str(plan.id)})
 
     db.add(
         make_audit_event(
@@ -591,6 +593,7 @@ def create_plan(
             meta.get("request_id"),
         )
     )
+    upsert_tenant_health_snapshot(db, tenant_id)
     db.commit()
     return {"id": str(plan.id), "status": plan.status}
 
@@ -628,6 +631,8 @@ def update_plan(
     for k, v in data.items():
         setattr(plan, k, v)
 
+    actor_role = (user.roles[0].role.key if getattr(user, "roles", None) and user.roles and user.roles[0].role else None)
+    capture_analytics_event(db, "action_plan_updated", source="backend", tenant_id=tenant_id, user_id=user.id, actor_role=actor_role, module="action_plans", properties={"plan_id": str(plan.id), "status": data.get("status", plan.status)})
     db.add(
         make_audit_event(
             tenant_id,
@@ -642,6 +647,7 @@ def update_plan(
             meta.get("request_id"),
         )
     )
+    upsert_tenant_health_snapshot(db, tenant_id)
     db.commit()
     return {"id": str(plan.id), "status": plan.status}
 
@@ -792,6 +798,8 @@ def add_item(
     )
     db.add(item)
     db.flush()
+    actor_role = (user.roles[0].role.key if getattr(user, "roles", None) and user.roles and user.roles[0].role else None)
+    capture_analytics_event(db, "action_item_created", source="backend", tenant_id=tenant_id, user_id=user.id, actor_role=actor_role, module="action_plans", properties={"plan_id": str(plan.id), "item_id": str(item.id), "item_type": item.item_type, "priority": item.priority})
 
     # Registrar criação no histórico
     _record_history(db, item, user.id, tenant_id, "created", None, "Item criado")
@@ -815,6 +823,7 @@ def add_item(
             meta.get("request_id"),
         )
     )
+    upsert_tenant_health_snapshot(db, tenant_id)
     db.commit()
 
     # Auto-enrollment for educational items
@@ -888,7 +897,6 @@ def add_item(
             # Enrollment failure must not prevent item creation;
             # the item is already committed above.
 
-    # TODO: Enviar notificação se notify_on_assignment e responsible_user_id
 
     result: dict = {"id": str(item.id)}
     if auto_enroll_result is not None:
@@ -1014,6 +1022,10 @@ def update_item(
             meta.get("request_id"),
         )
     )
+    actor_role = (user.roles[0].role.key if getattr(user, "roles", None) and user.roles and user.roles[0].role else None)
+    event_name = "action_completed" if data.get("status") == "done" else "action_item_updated"
+    capture_analytics_event(db, event_name, source="backend", tenant_id=tenant_id, user_id=user.id, actor_role=actor_role, module="action_plans", properties={"item_id": str(item.id), "status": data.get("status", item.status), "priority": item.priority})
+    upsert_tenant_health_snapshot(db, tenant_id)
     db.commit()
 
     # Auto-enrollment on update for educational items
@@ -1288,6 +1300,8 @@ def add_evidence(
     )
     db.add(ev)
     db.flush()
+    actor_role = (user.roles[0].role.key if getattr(user, "roles", None) and user.roles and user.roles[0].role else None)
+    capture_analytics_event(db, "evidence_uploaded", source="backend", tenant_id=tenant_id, user_id=user.id, actor_role=actor_role, module="action_plans", properties={"item_id": str(item.id), "evidence_type": payload.evidence_type})
 
     # Registrar no histórico
     _record_history(
@@ -1308,6 +1322,7 @@ def add_evidence(
             meta.get("request_id"),
         )
     )
+    upsert_tenant_health_snapshot(db, tenant_id)
     db.commit()
     return {"id": str(ev.id)}
 
@@ -1531,7 +1546,6 @@ def add_comment(
     )
     db.commit()
 
-    # TODO: Enviar notificação para mencionados
 
     return {"id": str(comment.id)}
 

@@ -1,0 +1,50 @@
+{
+  "annotations": {"list": []},
+  "editable": true,
+  "graphTooltip": 0,
+  "panels": [
+    {
+      "type": "timeseries",
+      "title": "HTTP Requests",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 0},
+      "targets": [{"expr": "sum by (status) (http_requests_total)", "legendFormat": "{{status}}"}]
+    },
+    {
+      "type": "timeseries",
+      "title": "Auth Rate Limit Blocks",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 0},
+      "targets": [{"expr": "sum by (scope) (auth_rate_limit_block_total)", "legendFormat": "{{scope}}"}]
+    },
+    {
+      "type": "stat",
+      "title": "Emails Enqueued",
+      "gridPos": {"h": 6, "w": 6, "x": 0, "y": 8},
+      "targets": [{"expr": "sum(email_enqueued_total)", "legendFormat": "emails"}]
+    },
+    {
+      "type": "stat",
+      "title": "Refresh Rotations",
+      "gridPos": {"h": 6, "w": 6, "x": 6, "y": 8},
+      "targets": [{"expr": "sum(auth_refresh_rotated_total)", "legendFormat": "rotations"}]
+    },
+    {
+      "type": "stat",
+      "title": "Database Ready",
+      "gridPos": {"h": 6, "w": 6, "x": 12, "y": 8},
+      "targets": [{"expr": "health_ready_database", "legendFormat": "db"}]
+    },
+    {
+      "type": "stat",
+      "title": "Redis Ready",
+      "gridPos": {"h": 6, "w": 6, "x": 18, "y": 8},
+      "targets": [{"expr": "health_ready_redis", "legendFormat": "redis"}]
+    }
+  ],
+  "schemaVersion": 39,
+  "style": "dark",
+  "tags": ["nrsolucoes"],
+  "templating": {"list": []},
+  "time": {"from": "now-6h", "to": "now"},
+  "title": "NR Solucoes Backend Overview",
+  "version": 1
+}

@@ -1,7 +1,7 @@
 """add_training_enrollments_and_certificates
 
 Revision ID: 20260306_training
-Revises: previous_revision
+Revises: 0003_campaign_invitations
 Create Date: 2026-03-06
 
 Este migration adiciona:
@@ -16,7 +16,7 @@ from sqlalchemy.dialects import postgresql
 
 # revision identifiers
 revision = '20260306_training'
-down_revision = None  # Ajustar para a última migration existente
+down_revision = "0003_campaign_invitations"
 branch_labels = None
 depends_on = None
 

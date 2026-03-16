@@ -48,7 +48,7 @@ def _login(client, email: str, password: str):
 def test_questionnaires_list_templates_and_versions(client, db, platform_admin):
     # platform template
     admin_token = _login(client, "platform@nr.com", "admin123")
-    r = client.post("/api/v1/questionnaires/templates", json={"key":"nr1_psicossocial","name":"NR1","description":"x","is_platform_managed":True}, headers={"Authorization": f"Bearer {admin_token}"})
+    r = client.post("/api/v1/questionnaires/templates", json={"key":"nr1_governanca_evidencias","name":"NR1","description":"x","is_platform_managed":True}, headers={"Authorization": f"Bearer {admin_token}"})
     assert r.status_code == 200
     platform_template_id = r.json()["id"]
 

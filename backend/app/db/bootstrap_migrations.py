@@ -102,6 +102,22 @@ def _ensure_bool_column(conn, table: str, column: str) -> None:
     conn.execute(text(f"ALTER TABLE {table} ALTER COLUMN {column} SET NOT NULL"))
 
 
+def _ensure_int_column(conn, table: str, column: str, default: int = 0) -> None:
+    col_type = _pg_column_type(conn, table, column)
+    if not col_type:
+        conn.execute(text(f"ALTER TABLE {table} ADD COLUMN IF NOT EXISTS {column} integer NOT NULL DEFAULT {int(default)}"))
+        return
+    if col_type in {"integer", "bigint", "smallint"}:
+        return
+    conn.execute(text(f"""
+        ALTER TABLE {table}
+        ALTER COLUMN {column} TYPE integer
+        USING (CASE WHEN {column} IS NULL OR trim({column}::text) = '' THEN {int(default)} ELSE ({column}::text)::integer END)
+    """))
+    conn.execute(text(f"ALTER TABLE {table} ALTER COLUMN {column} SET DEFAULT {int(default)}"))
+    conn.execute(text(f"ALTER TABLE {table} ALTER COLUMN {column} SET NOT NULL"))
+
+
 
 def _add_column_if_missing(conn, table: str, column: str, ddl_type: str) -> None:
     col_type = _pg_column_type(conn, table, column)
@@ -151,6 +167,21 @@ def apply_bootstrap_migrations(engine: Engine) -> None:
         if _pg_table_exists(conn, "content_item"):
             logger.info("schema-bootstrap: ensuring content_item.storage_key column")
             _add_column_if_missing(conn, "content_item", "storage_key", "VARCHAR(500)")
+
+        if _pg_table_exists(conn, "campaign"):
+            logger.info("schema-bootstrap: ensuring campaign invitation columns are typed")
+            _ensure_bool_column(conn, "campaign", "require_invitation")
+            _ensure_int_column(conn, "campaign", "invitation_expires_days", 30)
+
+        if _pg_table_exists(conn, "campaign_invitation"):
+            logger.info("schema-bootstrap: ensuring campaign_invitation counters are typed")
+            _ensure_int_column(conn, "campaign_invitation", "reminder_count", 0)
+
+        if _pg_table_exists(conn, "campaign_invitation_batch"):
+            logger.info("schema-bootstrap: ensuring campaign_invitation_batch stats are typed")
+            _ensure_int_column(conn, "campaign_invitation_batch", "total_invited", 0)
+            _ensure_int_column(conn, "campaign_invitation_batch", "total_sent", 0)
+            _ensure_int_column(conn, "campaign_invitation_batch", "total_failed", 0)
 
         # ========================================
         # ACTION PLAN ENTERPRISE 2.0 MIGRATIONS
@@ -394,11 +425,11 @@ def apply_bootstrap_migrations(engine: Engine) -> None:
             conn.execute(text("CREATE INDEX ix_auth_audit_event ON auth_audit_log(event_type)"))
             conn.execute(text("CREATE INDEX ix_auth_audit_created ON auth_audit_log(created_at)"))
 
-        # Critério de risco padrão da plataforma (NR-1 Psicossocial)
+        # Critério de risco padrão da plataforma (NR-1 Governança e Evidências)
         if _pg_table_exists(conn, "risk_criterion_version"):
             logger.info("schema-bootstrap: ensuring default risk criterion exists")
             existing = conn.execute(
-                text("SELECT id FROM risk_criterion_version WHERE tenant_id IS NULL AND name = 'NR-1 Psicossocial - Padrão' LIMIT 1")
+                text("SELECT id FROM risk_criterion_version WHERE tenant_id IS NULL AND name = 'NR-1 Governança e Evidências - Padrão' LIMIT 1")
             ).fetchone()
             if not existing:
                 import uuid
@@ -415,14 +446,14 @@ def apply_bootstrap_migrations(engine: Engine) -> None:
                         "low": 0.7,
                         "high": 0.4
                     },
-                    "description": "Critério padrão para avaliação de riscos psicossociais conforme NR-1. Scores acima de 70% = Risco Baixo, entre 40-70% = Risco Médio, abaixo de 40% = Risco Alto."
+                    "description": "Critério padrão para avaliação de governança, evidências e fatores de risco conforme NR-1. Scores acima de 70% = Risco Baixo, entre 40-70% = Risco Médio, abaixo de 40% = Risco Alto."
                 })
                 conn.execute(
                     text("""
                         INSERT INTO risk_criterion_version (id, tenant_id, name, status, content, version, published_at, created_at, updated_at)
                         VALUES (:id, NULL, :name, 'published', CAST(:content AS jsonb), 1, NOW(), NOW(), NOW())
                     """),
-                    {"id": criterion_id, "name": "NR-1 Psicossocial - Padrão", "content": content}
+                    {"id": criterion_id, "name": "NR-1 Governança e Evidências - Padrão", "content": content}
                 )
                 logger.info(f"schema-bootstrap: created default risk criterion {criterion_id}")
 
@@ -448,5 +479,52 @@ def apply_bootstrap_migrations(engine: Engine) -> None:
             _add_column_if_missing(conn, "training_certificate", "syllabus", "TEXT")
             _add_column_if_missing(conn, "training_certificate", "training_modality", "VARCHAR(30)")
             _add_column_if_missing(conn, "training_certificate", "formal_hours_minutes", "INTEGER")
+
+
+        # ========================================
+        # BILLING / FINANCE ENTERPRISE
+        # ========================================
+        if _pg_table_exists(conn, "plan"):
+            _add_column_if_missing(conn, "plan", "stripe_price_id_monthly", "VARCHAR(200)")
+            _add_column_if_missing(conn, "plan", "stripe_price_id_annual", "VARCHAR(200)")
+        if _pg_table_exists(conn, "tenant_subscription"):
+            _add_column_if_missing(conn, "tenant_subscription", "trial_ends_at", "TIMESTAMP")
+            _add_column_if_missing(conn, "tenant_subscription", "billing_cycle", "VARCHAR(20) DEFAULT 'monthly'")
+        if not _pg_table_exists(conn, "billing_profile"):
+            conn.execute(text("""CREATE TABLE billing_profile (id UUID PRIMARY KEY, tenant_id UUID NOT NULL UNIQUE, legal_name VARCHAR(200), trade_name VARCHAR(200), cnpj_number VARCHAR(20), state_registration VARCHAR(50), municipal_registration VARCHAR(50), tax_regime VARCHAR(50), contact_name VARCHAR(200), contact_email VARCHAR(200), finance_email VARCHAR(200), contact_phone VARCHAR(30), address_street VARCHAR(255), address_number VARCHAR(50), address_complement VARCHAR(100), address_district VARCHAR(100), city VARCHAR(100), state VARCHAR(2), postal_code VARCHAR(20), country_code VARCHAR(2) NOT NULL DEFAULT 'BR', notes TEXT, metadata JSONB DEFAULT '{}', created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())"""))
+            conn.execute(text("CREATE INDEX ix_billing_profile_tenant ON billing_profile(tenant_id)"))
+        if not _pg_table_exists(conn, "billing_invoice"):
+            conn.execute(text("""CREATE TABLE billing_invoice (id UUID PRIMARY KEY, tenant_id UUID NOT NULL, subscription_id UUID, source_provider VARCHAR(30) NOT NULL DEFAULT 'stripe', source_invoice_id VARCHAR(200), source_subscription_id VARCHAR(200), plan_key VARCHAR(50), billing_cycle VARCHAR(20), currency VARCHAR(10) NOT NULL DEFAULT 'brl', payment_status VARCHAR(30) NOT NULL DEFAULT 'draft', fiscal_status VARCHAR(30) NOT NULL DEFAULT 'pending_profile', amount_due INTEGER, amount_paid INTEGER, amount_discount INTEGER, amount_tax INTEGER, due_at TIMESTAMP, paid_at TIMESTAMP, period_start TIMESTAMP, period_end TIMESTAMP, customer_name VARCHAR(200), customer_document VARCHAR(30), customer_email VARCHAR(200), hosted_invoice_url VARCHAR(1000), invoice_pdf_url VARCHAR(1000), issue_provider VARCHAR(50), external_invoice_number VARCHAR(100), external_invoice_id VARCHAR(200), verification_code VARCHAR(100), fiscal_pdf_url VARCHAR(1000), fiscal_xml_url VARCHAR(1000), issue_attempted_at TIMESTAMP, issued_at TIMESTAMP, emailed_at TIMESTAMP, email_last_recipient VARCHAR(200), error_message TEXT, line_items JSONB DEFAULT '[]', metadata JSONB DEFAULT '{}', created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW(), CONSTRAINT uq_billing_invoice_source UNIQUE (source_provider, source_invoice_id))"""))
+            conn.execute(text("CREATE INDEX ix_billing_invoice_tenant ON billing_invoice(tenant_id)"))
+        if not _pg_table_exists(conn, "platform_billing_config"):
+            conn.execute(text("""CREATE TABLE platform_billing_config (id UUID PRIMARY KEY, key VARCHAR(50) NOT NULL UNIQUE, is_active BOOLEAN NOT NULL DEFAULT true, provider_type VARCHAR(50) NOT NULL DEFAULT 'manual', provider_environment VARCHAR(20) NOT NULL DEFAULT 'sandbox', issuer_legal_name VARCHAR(200), issuer_document VARCHAR(30), issuer_municipal_registration VARCHAR(50), issuer_email VARCHAR(200), service_code VARCHAR(50), service_description VARCHAR(255), api_base_url VARCHAR(500), api_token VARCHAR(500), webhook_url VARCHAR(500), webhook_secret VARCHAR(500), auto_issue_on_payment BOOLEAN NOT NULL DEFAULT false, auto_email_invoice BOOLEAN NOT NULL DEFAULT true, send_boleto_pdf BOOLEAN NOT NULL DEFAULT true, metadata JSONB DEFAULT '{}', created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())"""))
+        if not _pg_table_exists(conn, "tenant_onboarding"):
+            conn.execute(text("""CREATE TABLE tenant_onboarding (id UUID PRIMARY KEY, tenant_id UUID NOT NULL UNIQUE, status VARCHAR(30) NOT NULL DEFAULT 'in_progress', current_step VARCHAR(50) DEFAULT 'billing_profile', plan_selected_at TIMESTAMP, payment_confirmed_at TIMESTAMP, billing_profile_completed_at TIMESTAMP, org_structure_completed_at TIMESTAMP, first_user_completed_at TIMESTAMP, first_campaign_completed_at TIMESTAMP, first_response_completed_at TIMESTAMP, completed_at TIMESTAMP, notes TEXT, metadata JSONB DEFAULT '{}', created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())"""))
+            conn.execute(text("CREATE INDEX ix_tenant_onboarding_tenant ON tenant_onboarding(tenant_id)"))
+        for tbl in ["esocial_s2240_profile", "esocial_s2210_accident", "esocial_s2220_exam"]:
+            if _pg_table_exists(conn, tbl):
+                _add_column_if_missing(conn, tbl, "layout_version", "VARCHAR(20) DEFAULT 'S-1.3'")
+                _add_column_if_missing(conn, tbl, "source_reference", "VARCHAR(120)")
+                _add_column_if_missing(conn, tbl, "traceability", "JSONB DEFAULT '{}'::jsonb")
+
+        # ========================================
+        # ANALYTICS / HEALTH / RETENTION
+        # ========================================
+        if not _pg_table_exists(conn, "analytics_event"):
+            conn.execute(text("""CREATE TABLE analytics_event (id UUID PRIMARY KEY, tenant_id UUID, user_id UUID, employee_id UUID, event_name VARCHAR(120) NOT NULL, source VARCHAR(20) NOT NULL DEFAULT 'backend', actor_role VARCHAR(80), module VARCHAR(80), distinct_key VARCHAR(160), path VARCHAR(500), referrer VARCHAR(1000), channel VARCHAR(80), utm_source VARCHAR(120), utm_medium VARCHAR(120), utm_campaign VARCHAR(160), utm_term VARCHAR(160), utm_content VARCHAR(160), properties JSONB DEFAULT '{}'::jsonb, occurred_at TIMESTAMP DEFAULT NOW(), created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())"""))
+            conn.execute(text("CREATE INDEX ix_analytics_event_tenant ON analytics_event(tenant_id)"))
+            conn.execute(text("CREATE INDEX ix_analytics_event_user ON analytics_event(user_id)"))
+            conn.execute(text("CREATE INDEX ix_analytics_event_employee ON analytics_event(employee_id)"))
+            conn.execute(text("CREATE INDEX ix_analytics_event_name ON analytics_event(event_name)"))
+            conn.execute(text("CREATE INDEX ix_analytics_event_occurred ON analytics_event(occurred_at)"))
+        if not _pg_table_exists(conn, "tenant_health_snapshot"):
+            conn.execute(text("""CREATE TABLE tenant_health_snapshot (id UUID PRIMARY KEY, tenant_id UUID NOT NULL UNIQUE, score INTEGER NOT NULL DEFAULT 0, band VARCHAR(20) NOT NULL DEFAULT 'critical', activation_status VARCHAR(30) NOT NULL DEFAULT 'not_started', onboarding_score INTEGER NOT NULL DEFAULT 0, activation_score INTEGER NOT NULL DEFAULT 0, depth_score INTEGER NOT NULL DEFAULT 0, routine_score INTEGER NOT NULL DEFAULT 0, billing_score INTEGER NOT NULL DEFAULT 0, metrics JSONB DEFAULT '{}'::jsonb, recommendations JSONB DEFAULT '[]'::jsonb, risk_flags JSONB DEFAULT '[]'::jsonb, last_value_event_at TIMESTAMP, last_active_at TIMESTAMP, recomputed_at TIMESTAMP DEFAULT NOW(), created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())"""))
+            conn.execute(text("CREATE INDEX ix_tenant_health_snapshot_tenant ON tenant_health_snapshot(tenant_id)"))
+            conn.execute(text("CREATE INDEX ix_tenant_health_snapshot_band ON tenant_health_snapshot(band)"))
+        if not _pg_table_exists(conn, "tenant_nudge"):
+            conn.execute(text("""CREATE TABLE tenant_nudge (id UUID PRIMARY KEY, tenant_id UUID NOT NULL, user_id UUID, nudge_key VARCHAR(120) NOT NULL, channel VARCHAR(30) NOT NULL DEFAULT 'in_app', audience_role VARCHAR(80), recipient_email VARCHAR(200), title VARCHAR(200) NOT NULL, body TEXT NOT NULL, status VARCHAR(30) NOT NULL DEFAULT 'pending', send_email BOOLEAN NOT NULL DEFAULT false, due_at TIMESTAMP, sent_at TIMESTAMP, resolved_at TIMESTAMP, context JSONB DEFAULT '{}'::jsonb, created_at TIMESTAMP DEFAULT NOW(), updated_at TIMESTAMP DEFAULT NOW())"""))
+            conn.execute(text("CREATE INDEX ix_tenant_nudge_tenant ON tenant_nudge(tenant_id)"))
+            conn.execute(text("CREATE INDEX ix_tenant_nudge_key ON tenant_nudge(nudge_key)"))
+            conn.execute(text("CREATE INDEX ix_tenant_nudge_status ON tenant_nudge(status)"))
 
     logger.info("schema-bootstrap: done")

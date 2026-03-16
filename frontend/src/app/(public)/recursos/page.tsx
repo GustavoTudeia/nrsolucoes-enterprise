@@ -92,7 +92,7 @@ export default function RecursosPage() {
         <Container>
           <SectionHeader
             eyebrow="Recursos da plataforma"
-            title="Tudo que você precisa para gestão de riscos psicossociais — em uma só plataforma"
+            title="Tudo que você precisa para gestão de governança e evidências NR-1 — em uma só plataforma"
             lead="Do diagnóstico à evidência auditável, cada módulo foi desenhado para reduzir fricção operacional e aumentar confiança na informação."
             align="center"
           />

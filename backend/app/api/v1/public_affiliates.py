@@ -14,8 +14,11 @@ from app.core.security import hash_password, create_access_token
 from app.core.errors import BadRequest, NotFound
 from app.core.config import settings
 from app.services.template_packs import apply_pack_to_tenant
+from app.services.finance_service import get_or_create_billing_profile, ensure_onboarding_row
 from app.schemas.public_signup import PublicSignupRequest, PublicSignupResponse
 from app.schemas.affiliate import AffiliatePublicOut
+from app.services.analytics_service import capture_analytics_event
+from app.services.tenant_health import upsert_tenant_health_snapshot
 
 router = APIRouter(prefix="/public")
 
@@ -37,6 +40,8 @@ def touch_affiliate(code: str, db: Session = Depends(get_db)):
     a = db.query(Affiliate).filter(Affiliate.code == code, Affiliate.status == "active").first()
     if not a:
         raise NotFound("Afiliado não encontrado")
+    capture_analytics_event(db, "affiliate_touch", source="public", distinct_key=f"affiliate:{a.code}", channel="affiliate", properties={"affiliate_code": a.code})
+    db.commit()
     return {"status": "ok"}
 
 @router.post("/signup", response_model=PublicSignupResponse)
@@ -93,6 +98,20 @@ def public_signup(payload: PublicSignupRequest, db: Session = Depends(get_db)):
             )
         )
 
+    billing_profile = get_or_create_billing_profile(db, tenant.id)
+    billing_profile.legal_name = payload.company_name
+    billing_profile.trade_name = payload.company_name
+    billing_profile.cnpj_number = payload.cnpj or billing_profile.cnpj_number
+    billing_profile.contact_name = payload.admin_name
+    billing_profile.contact_email = payload.admin_email
+    billing_profile.finance_email = payload.admin_email
+    billing_profile.contact_phone = payload.admin_phone
+    db.add(billing_profile)
+
+    onboarding = ensure_onboarding_row(db, tenant.id)
+    onboarding.plan_selected_at = datetime.utcnow()
+    db.add(onboarding)
+
     # Onboarding: aplica template pack
     pack_key = (getattr(settings, "AUTO_APPLY_TEMPLATE_PACK_KEY", "") or "").strip()
     if pack_key:
@@ -145,6 +164,9 @@ def public_signup(payload: PublicSignupRequest, db: Session = Depends(get_db)):
         is_active=True,
     ))
 
+    capture_analytics_event(db, "public_signup_completed", source="public", tenant_id=tenant.id, user_id=u.id, actor_role="OWNER", module="onboarding", distinct_key=payload.admin_email, channel="public_signup", properties={"plan_key": desired_key, "has_cnpj": bool(payload.cnpj), "affiliate_code": payload.affiliate_code})
+    capture_analytics_event(db, "tenant_created", source="backend", tenant_id=tenant.id, user_id=u.id, actor_role="OWNER", module="onboarding", distinct_key=payload.admin_email, properties={"plan_key": desired_key})
+    upsert_tenant_health_snapshot(db, tenant.id)
     db.commit()
 
     token = create_access_token(subject=u.email, extra={"uid": str(u.id), "tid": str(tenant.id), "pla": False})
