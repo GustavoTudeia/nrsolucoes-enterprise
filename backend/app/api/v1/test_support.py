@@ -106,7 +106,7 @@ def _ensure_user_scope(db: Session, user: User, tenant_id: UUID | None, role_key
 
 
 def _ensure_platform_admin(db: Session, namespace: str) -> User:
-    email = f"platform+{namespace}@nr-e2e.local"
+    email = f"platform+{namespace}@e2e-test.example.com"
     user = db.query(User).filter(User.email == email).first()
     if user:
         return user
@@ -138,7 +138,7 @@ def _ensure_tenant_fixture(db: Session, namespace: str, slug_suffix: str, plan_k
         db.add(unit)
         db.flush()
 
-    admin_email = f"admin+{namespace}-{slug_suffix}@nr-e2e.local"
+    admin_email = f"admin+{namespace}-{slug_suffix}@e2e-test.example.com"
     admin_cpf = _valid_cpf(seed)
     admin = db.query(User).filter(User.email == admin_email).first()
     if not admin:
@@ -151,7 +151,7 @@ def _ensure_tenant_fixture(db: Session, namespace: str, slug_suffix: str, plan_k
     _ensure_user_scope(db, admin, tenant.id, 'OWNER')
     _ensure_user_scope(db, admin, tenant.id, 'TENANT_ADMIN')
 
-    gestor_email = f"gestor+{namespace}-{slug_suffix}@nr-e2e.local"
+    gestor_email = f"gestor+{namespace}-{slug_suffix}@e2e-test.example.com"
     gestor = db.query(User).filter(User.email == gestor_email).first()
     if not gestor:
         gestor = User(tenant_id=tenant.id, email=gestor_email, cpf=_valid_cpf(seed + 1), full_name=f"Gestor {label}", phone='11999990001', password_hash=hash_password('StrongPass123!'), is_active=True, is_platform_admin=False)
@@ -161,7 +161,7 @@ def _ensure_tenant_fixture(db: Session, namespace: str, slug_suffix: str, plan_k
     _ensure_user_scope(db, gestor, tenant.id, 'SECURITY_ANALYST')
     _ensure_user_scope(db, gestor, tenant.id, 'CNPJ_MANAGER')
 
-    employee_identifier = f"colaborador+{namespace}-{slug_suffix}@nr-e2e.local"
+    employee_identifier = f"colaborador+{namespace}-{slug_suffix}@e2e-test.example.com"
     employee = db.query(Employee).filter(Employee.tenant_id == tenant.id, Employee.identifier == employee_identifier).first()
     if not employee:
         employee = Employee(
